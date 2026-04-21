@@ -1,0 +1,47 @@
+export type CategoryKey =
+  | 'food'
+  | 'transport'
+  | 'shopping'
+  | 'bills'
+  | 'groceries'
+  | 'fuel'
+  | 'entertainment'
+  | 'health'
+  | 'transfer'
+  | 'other';
+
+export type Category = {
+  key: string;
+  label: string;
+  glyph: string;
+  builtin: boolean;
+};
+
+export const BUILTIN_CATEGORIES: Category[] = [
+  { key: 'food', label: 'Food', glyph: '◔', builtin: true },
+  { key: 'transport', label: 'Transport', glyph: '◑', builtin: true },
+  { key: 'shopping', label: 'Shopping', glyph: '◕', builtin: true },
+  { key: 'bills', label: 'Bills', glyph: '◼', builtin: true },
+  { key: 'groceries', label: 'Groceries', glyph: '◆', builtin: true },
+  { key: 'fuel', label: 'Fuel', glyph: '▲', builtin: true },
+  { key: 'entertainment', label: 'Fun', glyph: '◈', builtin: true },
+  { key: 'health', label: 'Health', glyph: '＋', builtin: true },
+  { key: 'transfer', label: 'Transfer', glyph: '⇄', builtin: true },
+  { key: 'other', label: 'Other', glyph: '○', builtin: true },
+];
+
+export const CATEGORY_BY_KEY: Record<string, Category> = Object.fromEntries(
+  BUILTIN_CATEGORIES.map((c) => [c.key, c])
+);
+
+export function getCategory(key: string, customs: Category[] = []): Category {
+  return (
+    CATEGORY_BY_KEY[key] ??
+    customs.find((c) => c.key === key) ?? {
+      key,
+      label: key,
+      glyph: '○',
+      builtin: false,
+    }
+  );
+}
