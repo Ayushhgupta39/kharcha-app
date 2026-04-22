@@ -33,7 +33,7 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
   const budgets = useBudgets((s) => s.budgets);
   const customs = useCategories((s) => s.customs);
 
-  const now = new Date();
+  const now = useMemo(() => new Date(), []);
   const todayDay = now.getDate();
   const month = now.getMonth() + 1;
   const year = now.getFullYear();
@@ -41,7 +41,6 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
   const [selectedDay, setSelectedDay] = useState<number>(todayDay);
 
   const {
-    todayTxs,
     todayTotal,
     monthTotal,
     selectedDayTxs,
@@ -61,22 +60,16 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
     const inMonth = txs.filter(
       (t) => t.date >= monthStart && t.date <= monthEnd && t.category !== 'transfer'
     );
-    const todayTxs = inMonth.filter(
-      (t) => t.date >= todayStart && t.date <= todayEndIso
-    );
-    const yesterdayTxs = inMonth.filter(
-      (t) => t.date >= yStart && t.date <= yEnd
-    );
+    const todayTxs = inMonth.filter((t) => t.date >= todayStart && t.date <= todayEndIso);
+    const yesterdayTxs = inMonth.filter((t) => t.date >= yStart && t.date <= yEnd);
     const monthTotal = inMonth.reduce((s, t) => s + t.amount, 0);
     const todayTotal = todayTxs.reduce((s, t) => s + t.amount, 0);
     const yesterdayTotal = yesterdayTxs.reduce((s, t) => s + t.amount, 0);
     const monthAvg = monthTotal / todayDay;
-
     const selIso = format(new Date(year, month - 1, selectedDay), 'yyyy-MM-dd');
     const selectedDayTxs = inMonth.filter((t) => t.date.startsWith(selIso));
     const selectedDayTotal = selectedDayTxs.reduce((s, t) => s + t.amount, 0);
     return {
-      todayTxs,
       todayTotal,
       monthTotal,
       selectedDayTxs,
@@ -144,9 +137,13 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
       {/* Hero */}
       <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 }}>
         <View style={styles.heroMeta}>
-          <Tag>TODAY · {format(now, 'd MMM').toUpperCase()}</Tag>
+          <Tag>
+            {selectedDay === todayDay
+              ? `TODAY · ${format(now, 'd MMM').toUpperCase()}`
+              : format(new Date(year, month - 1, selectedDay), 'd MMM').toUpperCase()}
+          </Tag>
           <T mono color={C.text3} style={{ fontSize: 10 }}>
-            {todayTxs.length} TXNS
+            {selectedDayTxs.length} TXNS
           </T>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
@@ -164,11 +161,11 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
               letterSpacing: -1.8,
               color: C.text,
             }}>
-            {Math.round(todayTotal).toLocaleString('en-IN')}
+            {Math.round(selectedDayTotal / 100).toLocaleString('en-IN')}
           </T>
         </View>
         <View style={styles.heroFoot}>
-          {yesterdayTotal > 0 ? (
+          {selectedDay === todayDay && yesterdayTotal > 0 ? (
             <View
               style={[
                 styles.deltaPill,
@@ -275,7 +272,7 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
         {/* Selected day preview */}
         <View style={{ paddingHorizontal: 20, paddingTop: 14 }}>
           <View style={styles.selBox}>
-            <View style={styles.selHeader}>
+            <View style={[styles.selHeader, { marginBottom: 0 }]}>
               <T
                 mono
                 weight="600"
@@ -296,44 +293,13 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
                 {formatAmount(selectedDayTotal)}
               </T>
             </View>
-            {selectedDayTxs.length === 0 ? (
-              <T mono color={C.text4} style={{ fontSize: 11 }}>
-                NO TRANSACTIONS
-              </T>
-            ) : (
-              <View style={{ gap: 6 }}>
-                {selectedDayTxs.slice(0, 3).map((t) => (
-                  <View
-                    key={t.id}
-                    style={{
-                      flexDirection: 'row',
-                      justifyContent: 'space-between',
-                    }}>
-                    <T
-                      color={C.text2}
-                      numberOfLines={1}
-                      style={{ fontSize: 12, flex: 1, marginRight: 8 }}>
-                      {t.merchant}
-                    </T>
-                    <T mono color={C.text} style={{ fontSize: 12 }}>
-                      {formatAmount(t.amount)}
-                    </T>
-                  </View>
-                ))}
-                {selectedDayTxs.length > 3 ? (
-                  <T mono color={C.text3} style={{ fontSize: 10, marginTop: 2 }}>
-                    +{selectedDayTxs.length - 3} MORE
-                  </T>
-                ) : null}
-              </View>
-            )}
           </View>
         </View>
       </View>
 
       {/* Recent */}
       <LabeledRule
-        label="RECENT"
+        label={selectedDay === todayDay ? 'TODAY' : format(new Date(year, month - 1, selectedDay), 'd MMM').toUpperCase()}
         right={
           <Pressable onPress={onGoTxns}>
             <T
@@ -346,14 +312,20 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
         }
       />
       <View>
-        {todayTxs.length === 0 && txs.length === 0 ? (
+        {selectedDayTxs.length === 0 && txs.length === 0 ? (
           <View style={{ padding: 24 }}>
             <T mono color={C.text3} style={{ fontSize: 11, textAlign: 'center' }}>
               NOTHING YET · TAP + TO ADD AN EXPENSE
             </T>
           </View>
+        ) : selectedDayTxs.length === 0 ? (
+          <View style={{ padding: 24 }}>
+            <T mono color={C.text3} style={{ fontSize: 11, textAlign: 'center' }}>
+              NO TRANSACTIONS THIS DAY
+            </T>
+          </View>
         ) : (
-          (todayTxs.length > 0 ? todayTxs : txs.slice(0, 4)).slice(0, 4).map((t) => (
+          selectedDayTxs.slice(0, 4).map((t) => (
             <TxRow
               key={t.id}
               tx={t}

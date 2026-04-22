@@ -19,6 +19,8 @@ export type IconName =
   | 'calendar'
   | 'chevron-r'
   | 'chevron-d'
+  | 'chevron-l'
+  | 'chevron-u'
   | 'shield'
   | 'lock'
   | 'sparkle'
@@ -169,6 +171,18 @@ export function Icon({
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24">
           <Path {...p} d="M6 9l6 6 6-6" />
+        </Svg>
+      );
+    case 'chevron-l':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24">
+          <Path {...p} d="M15 18l-6-6 6-6" />
+        </Svg>
+      );
+    case 'chevron-u':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24">
+          <Path {...p} d="M18 15l-6-6-6 6" />
         </Svg>
       );
     case 'shield':

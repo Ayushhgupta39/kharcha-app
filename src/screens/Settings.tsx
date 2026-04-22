@@ -23,7 +23,7 @@ import { SMS_SUPPORTED, ensureSmsPermission } from '../sms/reader';
 import { scanInboxAndEnqueue } from '../sms/ingest';
 import type { Budget } from '../db/budgets';
 
-type PickerKind = null | 'scanDepth' | 'budget' | 'alertPct';
+type PickerKind = null | 'scanDepth' | 'budget';
 
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -41,7 +41,6 @@ export function SettingsScreen() {
   const [picker, setPicker] = useState<PickerKind>(null);
   const [draftAmount, setDraftAmount] = useState('');
   const [draftPct, setDraftPct] = useState('85');
-  const [draftDepth, setDraftDepth] = useState('90');
 
   const onToggleSms = async (v: boolean) => {
     if (!SMS_SUPPORTED) {
@@ -71,7 +70,10 @@ export function SettingsScreen() {
     }
     const ok = await ensureSmsPermission();
     if (!ok) return;
-    const since = Date.now() - settings.scanDepthDays * 86400000;
+    const since =
+      settings.scanDepthDays === -1
+        ? new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
+        : Date.now() - settings.scanDepthDays * 86400000;
     const n = await scanInboxAndEnqueue(since);
     await settings.setLastScan(Date.now());
     Alert.alert('Scan complete', `${n} new SMS enqueued.`);
@@ -83,10 +85,7 @@ export function SettingsScreen() {
     setPicker('budget');
   };
 
-  const openDepthEditor = () => {
-    setDraftDepth(String(settings.scanDepthDays));
-    setPicker('scanDepth');
-  };
+  const openDepthEditor = () => setPicker('scanDepth');
 
   const saveOverallBudget = async () => {
     const rupees = parseInt(draftAmount, 10);
@@ -111,16 +110,6 @@ export function SettingsScreen() {
       return;
     }
     await removeBudget(overall.id);
-    setPicker(null);
-  };
-
-  const saveDepth = async () => {
-    const d = parseInt(draftDepth, 10);
-    if (!Number.isFinite(d) || d < 1 || d > 365) {
-      Alert.alert('Invalid', 'Pick a value between 1 and 365 days.');
-      return;
-    }
-    await settings.setScanDepthDays(d);
     setPicker(null);
   };
 
@@ -169,13 +158,18 @@ export function SettingsScreen() {
           onChange={onToggleSms}
         />
         <ToggleRow
+          label="Review before adding"
+          value={settings.manualApprove}
+          onChange={settings.setManualApprove}
+        />
+        <ToggleRow
           label="Auto-categorise"
           value={settings.autoCategorise}
           onChange={settings.setAutoCategorise}
         />
         <PressRow
           label="Scan depth"
-          value={`${settings.scanDepthDays} days`}
+          value={settings.scanDepthDays === -1 ? 'Current month' : `${settings.scanDepthDays} days`}
           onPress={openDepthEditor}
           disabled={!SMS_SUPPORTED}
         />
@@ -254,33 +248,32 @@ export function SettingsScreen() {
         visible={picker === 'scanDepth'}
         title="SCAN DEPTH"
         onClose={() => setPicker(null)}>
-        <View style={{ padding: 20, gap: 16 }}>
-          <T color={C.text2} style={{ fontSize: 13, lineHeight: 19 }}>
-            How many days back should we scan your inbox for bank SMS?
+        <View style={{ padding: 20, gap: 10 }}>
+          <T color={C.text2} style={{ fontSize: 13, lineHeight: 19, marginBottom: 6 }}>
+            How far back should we scan your inbox for bank SMS?
           </T>
-          <View style={styles.field}>
-            <Tag style={{ marginBottom: 6 }}>DAYS</Tag>
-            <TextInput
-              value={draftDepth}
-              onChangeText={setDraftDepth}
-              keyboardType="number-pad"
-              style={styles.input}
-              selectionColor={C.accent}
-            />
-          </View>
-          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-            {[30, 60, 90, 180, 365].map((d) => (
+          {[
+            { label: 'Current month', days: -1 },
+            { label: '30 days', days: 30 },
+            { label: '60 days', days: 60 },
+            { label: '90 days', days: 90 },
+            { label: '6 months', days: 180 },
+          ].map((opt) => {
+            const active = String(settings.scanDepthDays) === String(opt.days);
+            return (
               <Pressable
-                key={d}
-                onPress={() => setDraftDepth(String(d))}
-                style={styles.quickChip}>
-                <T mono style={{ fontSize: 11 }}>
-                  {d}d
+                key={opt.days}
+                onPress={async () => {
+                  await settings.setScanDepthDays(opt.days);
+                  setPicker(null);
+                }}
+                style={[styles.quickChip, active && { borderColor: C.accent }]}>
+                <T mono style={{ fontSize: 12, color: active ? C.accent : C.text2 }}>
+                  {opt.label}
                 </T>
               </Pressable>
-            ))}
-          </View>
-          <Button label="SAVE" onPress={saveDepth} />
+            );
+          })}
         </View>
       </Sheet>
 

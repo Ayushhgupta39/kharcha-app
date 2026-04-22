@@ -1,27 +1,27 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  Animated,
-  Easing,
-  Platform,
-  Pressable,
-  ScrollView,
-  View,
-  StyleSheet,
-  Text,
-} from 'react-native';
+import { Animated, Easing, Platform, Pressable, ScrollView, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { T, Tag } from '../components/Text';
-import { Icon } from '../components/Icon';
 import { Button, Hair } from '../components/Button';
 import { C } from '../lib/tokens';
 import { ensureSmsPermission, SMS_SUPPORTED } from '../sms/reader';
 import { scanInboxAndEnqueue } from '../sms/ingest';
 import { useSettings } from '../store/settings';
 import { usePending } from '../store/pending';
+import { useTransactions } from '../store/transactions';
+import { ArrowLeft, Check, Edit, Lock, Shield, X } from 'lucide-react-native';
 
-type Step = 0 | 1 | 2;
+type Step = 0 | 1 | 2 | 3;
 
 type Props = { onDone: () => void };
+
+const DEPTH_OPTIONS = [
+  { label: 'Current month', days: -1 },
+  { label: '30 days', days: 30 },
+  { label: '60 days', days: 60 },
+  { label: '90 days', days: 90 },
+  { label: '6 months', days: 180 },
+];
 
 export function OnboardingScreen({ onDone }: Props) {
   const [step, setStep] = useState<Step>(0);
@@ -32,20 +32,24 @@ export function OnboardingScreen({ onDone }: Props) {
 
   const handleAllow = async () => {
     setScanning(true);
-    setStep(2);
+    setStep(3);
     if (SMS_SUPPORTED) {
       const ok = await ensureSmsPermission();
       await useSettings.getState().setSmsEnabled(ok);
       if (ok) {
-        const since = Date.now() - useSettings.getState().scanDepthDays * 24 * 3600 * 1000;
+        const { scanDepthDays } = useSettings.getState();
+        const since =
+          scanDepthDays === -1
+            ? new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
+            : Date.now() - scanDepthDays * 24 * 3600 * 1000;
         const res = await scanInboxAndEnqueue(since);
         setScanned(res.scanned);
         setFound(res.enqueued);
         await useSettings.getState().setLastScan(Date.now());
         await usePending.getState().refresh();
+        await useTransactions.getState().refresh();
       }
     } else {
-      // iOS: no inbox access
       await useSettings.getState().setSmsEnabled(false);
     }
     setScanning(false);
@@ -61,30 +65,22 @@ export function OnboardingScreen({ onDone }: Props) {
     onDone();
   };
 
+  const padded = { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 20 };
+
+  // Step 0 — intro
   if (step === 0) {
     return (
-      <View
-        style={[styles.page, { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 20 }]}>
+      <View style={[styles.page, padded]}>
         <View style={styles.logoRow}>
           <View style={styles.logoSquare}>
-            <T mono weight="700" style={{ color: '#0A0A0A', fontSize: 16 }}>
-              K
-            </T>
+            <T mono weight="700" style={{ color: '#0A0A0A', fontSize: 16 }}>K</T>
           </View>
-          <T mono weight="600" style={{ fontSize: 13, letterSpacing: 1.3 }}>
-            KHARCHA
-          </T>
+          <T mono weight="600" style={{ fontSize: 13, letterSpacing: 1.3 }}>KHARCHA</T>
         </View>
 
         <View style={{ flex: 1 }}>
           <Tag style={{ marginBottom: 14 }}>01 / INTRODUCTION</Tag>
-          <T
-            style={{
-              fontSize: 36,
-              lineHeight: 38,
-              letterSpacing: -0.8,
-              marginBottom: 24,
-            }}>
+          <T style={{ fontSize: 36, lineHeight: 38, letterSpacing: -0.8, marginBottom: 24 }}>
             Expenses.{'\n'}
             <T style={{ fontSize: 36, color: C.text3 }}>Without{'\n'}</T>
             <T style={{ fontSize: 36, color: C.text3 }}>the spreadsheet.</T>
@@ -99,16 +95,10 @@ export function OnboardingScreen({ onDone }: Props) {
               ['03', 'No cloud, no login', 'your money, your machine'],
             ].map(([n, h, s]) => (
               <View key={n} style={{ flexDirection: 'row', gap: 14 }}>
-                <T mono color={C.text4} style={{ fontSize: 11, paddingTop: 2 }}>
-                  {n}
-                </T>
+                <T mono color={C.text4} style={{ fontSize: 11, paddingTop: 2 }}>{n}</T>
                 <View style={{ flex: 1 }}>
-                  <T weight="500" style={{ fontSize: 14, marginBottom: 2 }}>
-                    {h}
-                  </T>
-                  <T color={C.text3} style={{ fontSize: 12 }}>
-                    {s}
-                  </T>
+                  <T weight="500" style={{ fontSize: 14, marginBottom: 2 }}>{h}</T>
+                  <T color={C.text3} style={{ fontSize: 12 }}>{s}</T>
                 </View>
               </View>
             ))}
@@ -120,33 +110,25 @@ export function OnboardingScreen({ onDone }: Props) {
     );
   }
 
+  // Step 1 — preferences (approve mode + scan depth)
   if (step === 1) {
+    return <PreferencesStep onBack={() => setStep(0)} onNext={() => setStep(2)} />;
+  }
+
+  // Step 2 — permission
+  if (step === 2) {
     return (
-      <View
-        style={[styles.page, { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 20 }]}>
+      <View style={[styles.page, padded]}>
         <Pressable
-          onPress={() => setStep(0)}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
-            marginBottom: 40,
-          }}>
-          <Icon name="arrow-l" size={16} color={C.text3} />
-          <T mono color={C.text3} style={{ fontSize: 11, letterSpacing: 1.2 }}>
-            BACK
-          </T>
+          onPress={() => setStep(1)}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 40 }}>
+          <ArrowLeft size={16} color={C.text3} />
+          <T mono color={C.text3} style={{ fontSize: 11, letterSpacing: 1.2 }}>BACK</T>
         </Pressable>
 
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-          <Tag style={{ marginBottom: 14 }}>02 / PERMISSION</Tag>
-          <T
-            style={{
-              fontSize: 30,
-              lineHeight: 33,
-              letterSpacing: -0.6,
-              marginBottom: 18,
-            }}>
+          <Tag style={{ marginBottom: 14 }}>03 / PERMISSION</Tag>
+          <T style={{ fontSize: 30, lineHeight: 33, letterSpacing: -0.6, marginBottom: 18 }}>
             {SMS_SUPPORTED ? 'Allow SMS read access' : 'SMS read\nnot available on iOS'}
           </T>
           <T color={C.text2} style={{ fontSize: 14, lineHeight: 21 }}>
@@ -158,7 +140,7 @@ export function OnboardingScreen({ onDone }: Props) {
           {SMS_SUPPORTED ? (
             <View style={styles.infoBox}>
               <View style={styles.infoHeader}>
-                <Icon name="shield" size={16} color={C.accent} />
+                <Shield size={16} color={C.accent} />
                 <Tag color={C.accent}>WHAT WE ACCESS</Tag>
               </View>
               <View style={{ gap: 10 }}>
@@ -171,25 +153,15 @@ export function OnboardingScreen({ onDone }: Props) {
                     ['Contacts or media', false],
                   ] as [string, boolean][]
                 ).map(([l, y]) => (
-                  <View
-                    key={l}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 10,
-                    }}>
-                    <Icon
-                      name={y ? 'check' : 'x'}
-                      size={14}
-                      color={y ? C.accent : C.text4}
-                      strokeWidth={2}
-                    />
+                  <View key={l} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    {y ? (
+                      <Check size={14} color={C.accent} strokeWidth={2} />
+                    ) : (
+                      <X size={14} color={C.text4} strokeWidth={2} />
+                    )}
                     <T
                       color={y ? C.text : C.text4}
-                      style={{
-                        fontSize: 12,
-                        textDecorationLine: y ? 'none' : 'line-through',
-                      }}>
+                      style={{ fontSize: 12, textDecorationLine: y ? 'none' : 'line-through' }}>
                       {l}
                     </T>
                   </View>
@@ -199,7 +171,7 @@ export function OnboardingScreen({ onDone }: Props) {
           ) : (
             <View style={styles.infoBox}>
               <View style={styles.infoHeader}>
-                <Icon name="edit" size={16} color={C.accent} />
+                <Edit size={16} color={C.accent} />
                 <Tag color={C.accent}>WHAT YOU CAN DO ON iOS</Tag>
               </View>
               <View style={{ gap: 10 }}>
@@ -209,17 +181,9 @@ export function OnboardingScreen({ onDone }: Props) {
                   'Daily / monthly / yearly / custom views',
                   'Set overall & per-category budgets',
                 ].map((l) => (
-                  <View
-                    key={l}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 10,
-                    }}>
-                    <Icon name="check" size={14} color={C.accent} strokeWidth={2} />
-                    <T color={C.text} style={{ fontSize: 12 }}>
-                      {l}
-                    </T>
+                  <View key={l} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Check size={14} color={C.accent} strokeWidth={2} />
+                    <T color={C.text} style={{ fontSize: 12 }}>{l}</T>
                   </View>
                 ))}
               </View>
@@ -227,12 +191,10 @@ export function OnboardingScreen({ onDone }: Props) {
           )}
 
           <View style={styles.lockRow}>
-            <Icon name="lock" size={16} color={C.text3} />
+            <Lock size={16} color={C.text3} />
             <T color={C.text2} style={{ fontSize: 11, lineHeight: 16, flex: 1 }}>
               All parsing runs locally. No servers. No analytics.{' '}
-              <T color={C.text3} style={{ fontSize: 11 }}>
-                Works offline.
-              </T>
+              <T color={C.text3} style={{ fontSize: 11 }}>Works offline.</T>
             </T>
           </View>
           <View style={{ height: 28 }} />
@@ -246,34 +208,19 @@ export function OnboardingScreen({ onDone }: Props) {
     );
   }
 
-  // step 2 — scanning / done
+  // Step 3 — scanning / done
   return (
     <View
       style={[
         styles.page,
-        {
-          paddingTop: insets.top + 32,
-          paddingBottom: insets.bottom + 28,
-          overflow: 'hidden',
-          position: 'relative',
-        },
+        { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 28, overflow: 'hidden', position: 'relative' },
       ]}>
       {scanning && SMS_SUPPORTED ? <ScanLine /> : null}
-      <View
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-        }}>
-        <Tag style={{ marginBottom: 14 }}>{scanning ? '03 / SCANNING' : '03 / READY'}</Tag>
+      <View style={{ flex: 1, justifyContent: 'center' }}>
+        <Tag style={{ marginBottom: 14 }}>{scanning ? '04 / SCANNING' : '04 / READY'}</Tag>
         {!scanning ? (
           <>
-            <T
-              style={{
-                fontSize: 32,
-                lineHeight: 34,
-                letterSpacing: -0.6,
-                marginBottom: 24,
-              }}>
+            <T style={{ fontSize: 32, lineHeight: 34, letterSpacing: -0.6, marginBottom: 24 }}>
               All set.
             </T>
             <View style={{ gap: 10 }}>
@@ -297,9 +244,7 @@ export function OnboardingScreen({ onDone }: Props) {
                   <T mono color={C.accent} style={{ fontSize: 28, minWidth: 56 }}>
                     {String(n).padStart(2, '0')}
                   </T>
-                  <T color={C.text2} style={{ fontSize: 13 }}>
-                    {l}
-                  </T>
+                  <T color={C.text2} style={{ fontSize: 13 }}>{l}</T>
                 </View>
               ))}
             </View>
@@ -312,6 +257,102 @@ export function OnboardingScreen({ onDone }: Props) {
   );
 }
 
+function PreferencesStep({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
+  const settings = useSettings();
+  const [manualApprove, setManualApprove] = useState(settings.manualApprove);
+  const [depthIdx, setDepthIdx] = useState(() => {
+    const i = DEPTH_OPTIONS.findIndex((o) => o.days === settings.scanDepthDays);
+    return i >= 0 ? i : 2; // default 90d
+  });
+
+  const handleNext = async () => {
+    await settings.setManualApprove(manualApprove);
+    await settings.setScanDepthDays(DEPTH_OPTIONS[depthIdx].days);
+    onNext();
+  };
+
+  return (
+    <View style={[styles.page, { flex: 1 }]}>
+      <Pressable
+        onPress={onBack}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 40, marginTop: 32 }}>
+        <ArrowLeft size={16} color={C.text3} />
+        <T mono color={C.text3} style={{ fontSize: 11, letterSpacing: 1.2 }}>BACK</T>
+      </Pressable>
+
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        <Tag style={{ marginBottom: 14 }}>02 / PREFERENCES</Tag>
+        <T style={{ fontSize: 30, lineHeight: 33, letterSpacing: -0.6, marginBottom: 8 }}>
+          How should we handle transactions?
+        </T>
+        <T color={C.text3} style={{ fontSize: 13, lineHeight: 19, marginBottom: 28 }}>
+          You can change these anytime in Settings.
+        </T>
+
+        {/* Approve mode */}
+        <T mono weight="600" color={C.text3} style={{ fontSize: 10, letterSpacing: 1.2, marginBottom: 10 }}>
+          TRANSACTION MODE
+        </T>
+        <View style={{ gap: 8, marginBottom: 32 }}>
+          {[
+            {
+              value: false,
+              title: 'Auto-add',
+              desc: 'Transactions are added directly. Fastest experience.',
+            },
+            {
+              value: true,
+              title: 'Review first',
+              desc: 'Each transaction waits in a queue for you to approve or dismiss.',
+            },
+          ].map((opt) => {
+            const active = manualApprove === opt.value;
+            return (
+              <Pressable
+                key={String(opt.value)}
+                onPress={() => setManualApprove(opt.value)}
+                style={[styles.optionCard, active && styles.optionCardActive]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <T weight="500" style={{ fontSize: 14, color: active ? C.text : C.text2 }}>
+                    {opt.title}
+                  </T>
+                  {active ? <Check size={14} color={C.accent} strokeWidth={2.5} /> : null}
+                </View>
+                <T color={C.text3} style={{ fontSize: 12, lineHeight: 17 }}>{opt.desc}</T>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Scan depth */}
+        <T mono weight="600" color={C.text3} style={{ fontSize: 10, letterSpacing: 1.2, marginBottom: 10 }}>
+          SCAN DEPTH
+        </T>
+        <T color={C.text3} style={{ fontSize: 12, lineHeight: 17, marginBottom: 12 }}>
+          How far back should we look for bank SMS on first scan?
+        </T>
+        <View style={{ gap: 8, marginBottom: 32 }}>
+          {DEPTH_OPTIONS.map((opt, i) => {
+            const active = depthIdx === i;
+            return (
+              <Pressable
+                key={i}
+                onPress={() => setDepthIdx(i)}
+                style={[styles.depthRow, active && styles.depthRowActive]}>
+                <T style={{ fontSize: 13, color: active ? C.text : C.text2 }}>{opt.label}</T>
+                {active ? <Check size={14} color={C.accent} strokeWidth={2.5} /> : null}
+              </Pressable>
+            );
+          })}
+        </View>
+        <View style={{ height: 12 }} />
+      </ScrollView>
+
+      <Button label="NEXT →" onPress={handleNext} />
+    </View>
+  );
+}
+
 function ScanningAnim() {
   const [n, setN] = useState(0);
   useEffect(() => {
@@ -320,54 +361,21 @@ function ScanningAnim() {
   }, []);
   return (
     <View style={{ gap: 14 }}>
-      <T
-        style={{
-          fontSize: 28,
-          lineHeight: 30,
-          letterSpacing: -0.6,
-          marginBottom: 32,
-        }}>
+      <T style={{ fontSize: 28, lineHeight: 30, letterSpacing: -0.6, marginBottom: 32 }}>
         Scanning your inbox…
       </T>
       <T mono style={{ fontSize: 48, color: C.text, lineHeight: 48 }}>
         {String(n).padStart(3, '0')}
-        <T mono color={C.text4} style={{ fontSize: 48 }}>
-          {' '}
-          / 047
-        </T>
+        <T mono color={C.text4} style={{ fontSize: 48 }}>{' '}/ 047</T>
       </T>
-      <View
-        style={{
-          height: 2,
-          backgroundColor: C.border,
-          borderRadius: 1,
-          overflow: 'hidden',
-        }}>
-        <View
-          style={{
-            height: '100%',
-            width: `${(n / 47) * 100}%`,
-            backgroundColor: C.accent,
-          }}
-        />
+      <View style={{ height: 2, backgroundColor: C.border, borderRadius: 1, overflow: 'hidden' }}>
+        <View style={{ height: '100%', width: `${(n / 47) * 100}%`, backgroundColor: C.accent }} />
       </View>
-      <View
-        style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <T mono color={C.text3} style={{ fontSize: 11 }}>
           PARSING {Platform.OS === 'android' ? 'HDFC · ICICI · AXIS' : ''}
         </T>
-        <View
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: 3,
-            backgroundColor: C.accent,
-          }}
-        />
+        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: C.accent }} />
       </View>
     </View>
   );
@@ -387,10 +395,7 @@ function ScanLine() {
     loop.start();
     return () => loop.stop();
   }, [y]);
-  const translate = y.interpolate({
-    inputRange: [-1, 1],
-    outputRange: ['-100%', '100%'],
-  });
+  const translate = y.interpolate({ inputRange: [-1, 1], outputRange: ['-100%', '100%'] });
   return (
     <Animated.View
       pointerEvents="none"
@@ -402,12 +407,7 @@ function ScanLine() {
         bottom: 0,
         transform: [{ translateY: translate as unknown as number }],
       }}>
-      <View
-        style={{
-          height: '100%',
-          backgroundColor: 'rgba(212,255,79,0.08)',
-        }}
-      />
+      <View style={{ height: '100%', backgroundColor: 'rgba(212,255,79,0.08)' }} />
     </Animated.View>
   );
 }
@@ -455,5 +455,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  optionCard: {
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 2,
+    padding: 14,
+    backgroundColor: C.surface,
+  },
+  optionCardActive: {
+    borderColor: C.accent,
+  },
+  depthRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  depthRowActive: {
+    borderColor: C.accent,
   },
 });

@@ -5,6 +5,7 @@ type State = {
   onboarded: boolean;
   smsEnabled: boolean;
   autoCategorise: boolean;
+  manualApprove: boolean;
   scanDepthDays: number;
   lastScanEpoch: number;
 };
@@ -14,6 +15,7 @@ type Actions = {
   setOnboarded: (v: boolean) => Promise<void>;
   setSmsEnabled: (v: boolean) => Promise<void>;
   setAutoCategorise: (v: boolean) => Promise<void>;
+  setManualApprove: (v: boolean) => Promise<void>;
   setScanDepthDays: (d: number) => Promise<void>;
   setLastScan: (ms: number) => Promise<void>;
 };
@@ -22,13 +24,15 @@ export const useSettings = create<State & Actions>((set) => ({
   onboarded: false,
   smsEnabled: false,
   autoCategorise: true,
+  manualApprove: false,
   scanDepthDays: 90,
   lastScanEpoch: 0,
   async load() {
-    const [onb, sms, auto, depth, ls] = await Promise.all([
+    const [onb, sms, auto, approve, depth, ls] = await Promise.all([
       getSetting('onboarded'),
       getSetting('smsEnabled'),
       getSetting('autoCategorise'),
+      getSetting('manualApprove'),
       getSetting('scanDepthDays'),
       getSetting('lastScanEpoch'),
     ]);
@@ -36,6 +40,7 @@ export const useSettings = create<State & Actions>((set) => ({
       onboarded: onb === '1',
       smsEnabled: sms === '1',
       autoCategorise: auto == null ? true : auto === '1',
+      manualApprove: approve === '1',
       scanDepthDays: depth ? Number(depth) : 90,
       lastScanEpoch: ls ? Number(ls) : 0,
     });
@@ -51,6 +56,10 @@ export const useSettings = create<State & Actions>((set) => ({
   async setAutoCategorise(v) {
     await setSetting('autoCategorise', v ? '1' : '0');
     set({ autoCategorise: v });
+  },
+  async setManualApprove(v) {
+    await setSetting('manualApprove', v ? '1' : '0');
+    set({ manualApprove: v });
   },
   async setScanDepthDays(d) {
     await setSetting('scanDepthDays', String(d));

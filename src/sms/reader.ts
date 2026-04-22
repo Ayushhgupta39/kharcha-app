@@ -49,13 +49,27 @@ function loadNativeBridge(): any | null {
 
 export async function readSmsSince(sinceEpochMs: number): Promise<RawSms[]> {
   const bridge = loadNativeBridge();
+  console.log("BRIDGE: ", bridge)
   if (!bridge) return [];
+  
   return new Promise<RawSms[]>((resolve) => {
     const filter = {
       box: 'inbox',
       minDate: sinceEpochMs,
       maxCount: 500,
     };
+     console.log("IN REAS SMS: ",bridge.list(
+      JSON.stringify(filter),
+      () => resolve([]),
+      (_count: number, raw: string) => {
+        try {
+          const arr = JSON.parse(raw);
+          resolve(Array.isArray(arr) ? arr : []);
+        } catch {
+          resolve([]);
+        }
+      }
+    ))
     bridge.list(
       JSON.stringify(filter),
       () => resolve([]),

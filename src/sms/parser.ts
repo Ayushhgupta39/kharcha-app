@@ -17,7 +17,7 @@ export type ParsedSms = {
 const CREDIT_KEYWORDS =
   /\b(credited|received|deposit(ed)?|refund(ed)?|salary)\b/i;
 const DEBIT_KEYWORDS =
-  /\b(debited|spent|withdrawn|paid|purchased|charged|txn of|deducted)\b/i;
+  /\b(debited|spent|withdrawn|paid|purchased|charged|txn of|deducted|transaction of|transaction for|is successful|has been processed)\b/i;
 
 // Non-expense SMS — OTP, balance enquiry, reminders, etc.
 const NOISE_KEYWORDS =
@@ -28,7 +28,7 @@ const AMOUNT_RE =
   /(?:rs\.?|inr|₹)\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/i;
 
 const MERCHANT_AT_RE =
-  /(?:\bat\s+|\bto\s+|\bfor\s+|\bvia\s+upi\s+to\s+|\btowards\s+)([A-Z0-9@\-.\s&/*]{2,60}?)(?=\s+on\s|\s+ref|\s+txn|\s+upi|\s+\-|\s+avl|\s+a\/c|\s+\(|\.|\n|$)/i;
+  /(?:\bat\s+|\bto\s+|\bfor\s+|\bvia\s+upi\s+to\s+|\btowards\s+|\bon\s+)([A-Z0-9@\-.\s&/*]{2,60}?)(?=\s+on\s|\s+ref|\s+txn|\s+upi|\s+is\s|\s+\-|\s+avl|\s+a\/c|\s+\(|\.|\n|$)/i;
 
 const DATE_RE = /\b([0-3]?\d[-/][0-1]?\d[-/](?:20)?\d{2}|(?:on\s+)?\d{2}-[A-Z]{3}-\d{2,4})/i;
 
@@ -68,6 +68,10 @@ function parseBank(raw: string, sender?: string | null): string | null {
     'IDFC',
     'RBL',
     'FEDERAL',
+    'SLICE',
+    'ONECARD',
+    'SCAPIA',
+    'NIYO',
     'CANARA',
     'PNB',
     'BOB',

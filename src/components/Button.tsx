@@ -1,12 +1,7 @@
-import {
-  Pressable,
-  type PressableProps,
-  StyleSheet,
-  View,
-  type ViewStyle,
-} from 'react-native';
+import { Pressable, type PressableProps, StyleSheet, View, type ViewStyle } from 'react-native';
 import { T } from './Text';
 import { C, F } from '../lib/tokens';
+import { useState } from 'react';
 
 type ButtonProps = Omit<PressableProps, 'style' | 'children'> & {
   label: string;
@@ -15,26 +10,23 @@ type ButtonProps = Omit<PressableProps, 'style' | 'children'> & {
   style?: ViewStyle;
 };
 
-export function Button({
-  label,
-  variant = 'primary',
-  disabled,
-  style,
-  ...rest
-}: ButtonProps) {
+export function Button({ label, variant = 'primary', disabled, style, ...rest }: ButtonProps) {
   const isPrimary = variant === 'primary';
+  const [pressed, setPressed] = useState(false);
   return (
     <Pressable
       disabled={disabled}
       {...rest}
-      style={({ pressed }) => [
-        styles.base,
-        isPrimary ? styles.primary : styles.ghost,
-        disabled && { opacity: 0.35 },
-        pressed && isPrimary && { backgroundColor: C.accentDim },
-        pressed && !isPrimary && { backgroundColor: C.surface2 },
-        style,
-      ]}>
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      style={{
+        ...styles.base,
+        ...(isPrimary ? styles.primary : styles.ghost),
+        ...(disabled ? { opacity: 0.35 } : {}),
+        ...(pressed && isPrimary ? { backgroundColor: C.accentDim } : {}),
+        ...(pressed && !isPrimary ? { backgroundColor: C.surface2 } : {}),
+        ...style,
+      }}>
       <T
         mono
         weight="600"

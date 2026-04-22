@@ -5,6 +5,7 @@ import { C, F } from '../lib/tokens';
 import { formatAmount, formatTime } from '../lib/format';
 import { getCategory, type Category } from '../lib/categories';
 import type { Transaction } from '../db/transactions';
+import { useState } from 'react';
 
 type Props = {
   tx: Transaction;
@@ -14,13 +15,16 @@ type Props = {
 
 export function TxRow({ tx, onPress, customs = [] }: Props) {
   const cat = getCategory(tx.category, customs);
+  const [pressed, setPressed] = useState(false);
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.row,
-        pressed && { backgroundColor: C.surface2 },
-      ]}>
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+       style={{
+        ...styles.row,
+        ...(pressed ? { backgroundColor: C.surface2 } : {}),
+      }}>
       <CategoryGlyph category={tx.category} size={38} customs={customs} />
       <View style={styles.middle}>
         <T

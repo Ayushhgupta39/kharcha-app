@@ -8,6 +8,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { format, getDaysInMonth, startOfMonth, getDay } from 'date-fns';
 import { T, Tag } from '../components/Text';
 import { Icon } from '../components/Icon';
 import { CategoryGlyph } from '../components/CategoryGlyph';
@@ -27,10 +28,17 @@ export function ManualSheet({ visible, onClose }: Props) {
   const customs = useCategories((s) => s.customs);
   const add = useTransactions((s) => s.add);
 
+  const today = new Date();
+
   const [amount, setAmount] = useState('');
   const [merchant, setMerchant] = useState('');
   const [category, setCategory] = useState<string>('food');
   const [note, setNote] = useState('');
+  const [date, setDate] = useState<Date>(today);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  // calendar nav state — month/year being viewed
+  const [calYear, setCalYear] = useState(today.getFullYear());
+  const [calMonth, setCalMonth] = useState(today.getMonth()); // 0-based
 
   const amountNum = Number(amount);
   const valid = amount && amountNum > 0 && merchant.trim().length > 0;
@@ -40,15 +48,20 @@ export function ManualSheet({ visible, onClose }: Props) {
     setMerchant('');
     setCategory('food');
     setNote('');
+    setDate(today);
+    setShowDatePicker(false);
   };
 
   const save = async () => {
     if (!valid) return;
+    // Preserve current time but use selected date
+    const d = new Date(date);
+    d.setHours(today.getHours(), today.getMinutes(), today.getSeconds());
     await add({
       amount: Math.round(amountNum * 100),
       merchant: merchant.trim(),
       category,
-      date: new Date().toISOString(),
+      date: d.toISOString(),
       source: 'manual',
       note: note.trim() || null,
       bank: null,
@@ -57,6 +70,15 @@ export function ManualSheet({ visible, onClose }: Props) {
     reset();
     onClose();
   };
+
+  const isToday =
+    date.getDate() === today.getDate() &&
+    date.getMonth() === today.getMonth() &&
+    date.getFullYear() === today.getFullYear();
+
+  const dateLabel = isToday
+    ? 'TODAY'
+    : format(date, 'd MMM yyyy').toUpperCase();
 
   return (
     <Modal
@@ -123,6 +145,59 @@ export function ManualSheet({ visible, onClose }: Props) {
               style={styles.textInput}
               selectionColor={C.accent}
             />
+
+            {/* Date */}
+            <Tag style={{ marginBottom: 10, marginTop: 22 }}>DATE</Tag>
+            <Pressable
+              onPress={() => setShowDatePicker((v) => !v)}
+              style={[
+                styles.dateRow,
+                showDatePicker && { borderColor: C.accent },
+              ]}>
+              <Icon name="calendar" size={14} color={C.text3} />
+              <T mono style={{ fontSize: 13, flex: 1 }}>
+                {dateLabel}
+              </T>
+              <Icon
+                name={showDatePicker ? 'chevron-u' : 'chevron-d'}
+                size={13}
+                color={C.text3}
+              />
+            </Pressable>
+
+            {showDatePicker && (
+              <CalendarPicker
+                year={calYear}
+                month={calMonth}
+                selected={date}
+                maxDate={today}
+                onSelect={(d) => {
+                  setDate(d);
+                  setShowDatePicker(false);
+                }}
+                onPrevMonth={() => {
+                  if (calMonth === 0) {
+                    setCalMonth(11);
+                    setCalYear((y) => y - 1);
+                  } else {
+                    setCalMonth((m) => m - 1);
+                  }
+                }}
+                onNextMonth={() => {
+                  const nextM = calMonth === 11 ? 0 : calMonth + 1;
+                  const nextY = calMonth === 11 ? calYear + 1 : calYear;
+                  // Don't go beyond current month
+                  if (
+                    nextY > today.getFullYear() ||
+                    (nextY === today.getFullYear() &&
+                      nextM > today.getMonth())
+                  )
+                    return;
+                  setCalMonth(nextM);
+                  setCalYear(nextY);
+                }}
+              />
+            )}
 
             {/* Category */}
             <Tag style={{ marginBottom: 10, marginTop: 22 }}>CATEGORY</Tag>
@@ -197,6 +272,114 @@ export function ManualSheet({ visible, onClose }: Props) {
   );
 }
 
+type CalendarPickerProps = {
+  year: number;
+  month: number; // 0-based
+  selected: Date;
+  maxDate: Date;
+  onSelect: (d: Date) => void;
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
+};
+
+function CalendarPicker({
+  year,
+  month,
+  selected,
+  maxDate,
+  onSelect,
+  onPrevMonth,
+  onNextMonth,
+}: CalendarPickerProps) {
+  const firstOfMonth = startOfMonth(new Date(year, month, 1));
+  const startDow = getDay(firstOfMonth); // 0=Sun
+  const daysInM = getDaysInMonth(firstOfMonth);
+
+  const atMaxMonth =
+    year > maxDate.getFullYear() ||
+    (year === maxDate.getFullYear() && month >= maxDate.getMonth());
+
+  // Build rows
+  const slots: (number | null)[] = [];
+  for (let i = 0; i < startDow; i++) slots.push(null);
+  for (let d = 1; d <= daysInM; d++) slots.push(d);
+  while (slots.length % 7 !== 0) slots.push(null);
+
+  const rows: (number | null)[][] = [];
+  for (let i = 0; i < slots.length; i += 7) rows.push(slots.slice(i, i + 7));
+
+  return (
+    <View style={styles.calWrap}>
+      {/* Month nav */}
+      <View style={styles.calNav}>
+        <Pressable onPress={onPrevMonth} style={styles.calNavBtn}>
+          <Icon name="chevron-l" size={14} color={C.text2} />
+        </Pressable>
+        <T mono weight="600" style={{ fontSize: 11, letterSpacing: 1.3 }}>
+          {format(new Date(year, month, 1), 'MMM yyyy').toUpperCase()}
+        </T>
+        <Pressable
+          onPress={onNextMonth}
+          style={[styles.calNavBtn, atMaxMonth && { opacity: 0.2 }]}>
+          <Icon name="chevron-r" size={14} color={C.text2} />
+        </Pressable>
+      </View>
+
+      {/* DOW headers */}
+      <View style={styles.calDowRow}>
+        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+          <T key={i} mono style={styles.calDow}>
+            {d}
+          </T>
+        ))}
+      </View>
+
+      {/* Day rows */}
+      {rows.map((row, ri) => (
+        <View key={ri} style={styles.calRow}>
+          {row.map((day, ci) => {
+            if (day === null) {
+              return <View key={ci} style={styles.calCell} />;
+            }
+            const cellDate = new Date(year, month, day);
+            const isFuture = cellDate > maxDate;
+            const isSel =
+              selected.getDate() === day &&
+              selected.getMonth() === month &&
+              selected.getFullYear() === year;
+            const isToday =
+              maxDate.getDate() === day &&
+              maxDate.getMonth() === month &&
+              maxDate.getFullYear() === year;
+
+            return (
+              <Pressable
+                key={ci}
+                onPress={() => !isFuture && onSelect(cellDate)}
+                style={[
+                  styles.calCell,
+                  isSel && { backgroundColor: C.accent },
+                  !isSel && isToday && { borderColor: C.accent },
+                  isFuture && { opacity: 0.2 },
+                ]}>
+                <T
+                  mono
+                  weight={isSel || isToday ? '700' : '400'}
+                  style={[
+                    styles.calDayNum,
+                    { color: isSel ? '#0A0A0A' : isToday ? C.accent : C.text2 },
+                  ]}>
+                  {day}
+                </T>
+              </Pressable>
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
@@ -246,6 +429,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     borderRadius: 2,
   },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border2,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 2,
+  },
   catGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -269,5 +463,51 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: C.border,
     backgroundColor: C.bg,
+  },
+  calWrap: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: C.border2,
+    backgroundColor: C.surface,
+    borderRadius: 2,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+  },
+  calNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+  },
+  calNavBtn: {
+    padding: 4,
+  },
+  calDowRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  calDow: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 9,
+    color: C.text4,
+    letterSpacing: 1,
+    paddingVertical: 2,
+  },
+  calRow: {
+    flexDirection: 'row',
+    marginBottom: 3,
+  },
+  calCell: {
+    flex: 1,
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: C.border,
+    marginHorizontal: 1.5,
+  },
+  calDayNum: {
+    fontSize: 11,
   },
 });
