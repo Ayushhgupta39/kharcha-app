@@ -30,7 +30,7 @@ type Actions = {
   clearFilters: () => Promise<void>;
   add: (
     tx: Omit<Transaction, 'id'> & { id?: string }
-  ) => Promise<Transaction>;
+  ) => Promise<Transaction | null>;
   update: (
     id: string,
     patch: Partial<Omit<Transaction, 'id'>>,

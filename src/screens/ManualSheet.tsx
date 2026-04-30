@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -17,6 +18,8 @@ import { C, F } from '../lib/tokens';
 import { useCategories } from '../store/categories';
 import { useTransactions } from '../store/transactions';
 
+const GLYPH_OPTIONS = ['◉', '◎', '◇', '◈', '▽', '▷', '◁', '△', '⬡', '⬢', '✦', '✧', '⊕', '⊗', '⊘'];
+
 type Props = {
   visible: boolean;
   onClose: () => void;
@@ -26,7 +29,12 @@ export function ManualSheet({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const cats = useCategories((s) => s.all);
   const customs = useCategories((s) => s.customs);
+  const addCategory = useCategories((s) => s.add);
   const add = useTransactions((s) => s.add);
+
+  const [newCatOpen, setNewCatOpen] = useState(false);
+  const [newCatLabel, setNewCatLabel] = useState('');
+  const [newCatGlyph, setNewCatGlyph] = useState(GLYPH_OPTIONS[0]);
 
   const today = new Date();
 
@@ -36,7 +44,6 @@ export function ManualSheet({ visible, onClose }: Props) {
   const [note, setNote] = useState('');
   const [date, setDate] = useState<Date>(today);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  // calendar nav state — month/year being viewed
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth()); // 0-based
 
@@ -50,6 +57,28 @@ export function ManualSheet({ visible, onClose }: Props) {
     setNote('');
     setDate(today);
     setShowDatePicker(false);
+    setNewCatOpen(false);
+    setNewCatLabel('');
+    setNewCatGlyph(GLYPH_OPTIONS[0]);
+  };
+
+  const saveNewCategory = async () => {
+    const label = newCatLabel.trim();
+    if (!label) return;
+    const key = label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    if (!key) {
+      Alert.alert('Invalid name', 'Use letters or numbers.');
+      return;
+    }
+    if (cats.some((c) => c.key === key)) {
+      Alert.alert('Already exists', `A category named "${label}" already exists.`);
+      return;
+    }
+    await addCategory({ key, label, glyph: newCatGlyph });
+    setCategory(key);
+    setNewCatOpen(false);
+    setNewCatLabel('');
+    setNewCatGlyph(GLYPH_OPTIONS[0]);
   };
 
   const save = async () => {
@@ -111,7 +140,6 @@ export function ManualSheet({ visible, onClose }: Props) {
             }}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}>
-            {/* Amount */}
             <Tag style={{ marginBottom: 10 }}>AMOUNT</Tag>
             <View style={styles.amountRow}>
               <T
@@ -135,7 +163,6 @@ export function ManualSheet({ visible, onClose }: Props) {
               />
             </View>
 
-            {/* Merchant */}
             <Tag style={{ marginBottom: 10, marginTop: 22 }}>MERCHANT</Tag>
             <TextInput
               value={merchant}
@@ -146,7 +173,6 @@ export function ManualSheet({ visible, onClose }: Props) {
               selectionColor={C.accent}
             />
 
-            {/* Date */}
             <Tag style={{ marginBottom: 10, marginTop: 22 }}>DATE</Tag>
             <Pressable
               onPress={() => setShowDatePicker((v) => !v)}
@@ -199,7 +225,6 @@ export function ManualSheet({ visible, onClose }: Props) {
               />
             )}
 
-            {/* Category */}
             <Tag style={{ marginBottom: 10, marginTop: 22 }}>CATEGORY</Tag>
             <View style={styles.catGrid}>
               {cats.map((c) => {
@@ -225,9 +250,57 @@ export function ManualSheet({ visible, onClose }: Props) {
                   </Pressable>
                 );
               })}
+              <Pressable
+                onPress={() => setNewCatOpen((v) => !v)}
+                style={[
+                  styles.catCell,
+                  {
+                    borderColor: newCatOpen ? C.accent : C.border2,
+                    borderStyle: 'dashed',
+                    backgroundColor: C.surface,
+                  },
+                ]}>
+                <T mono color={newCatOpen ? C.accent : C.text3} style={{ fontSize: 18 }}>+</T>
+                <T style={{ fontSize: 12, color: newCatOpen ? C.accent : C.text3 }}>New</T>
+              </Pressable>
             </View>
 
-            {/* Note */}
+            {newCatOpen && (
+              <View style={styles.newCatPanel}>
+                <Tag style={{ marginBottom: 8 }}>GLYPH</Tag>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                  {GLYPH_OPTIONS.map((g) => (
+                    <Pressable
+                      key={g}
+                      onPress={() => setNewCatGlyph(g)}
+                      style={[
+                        styles.glyphCell,
+                        { borderColor: newCatGlyph === g ? C.accent : C.border2,
+                          backgroundColor: newCatGlyph === g ? C.accentGlow : C.surface },
+                      ]}>
+                      <T mono style={{ fontSize: 16, color: newCatGlyph === g ? C.accent : C.text2 }}>{g}</T>
+                    </Pressable>
+                  ))}
+                </View>
+                <Tag style={{ marginBottom: 8 }}>NAME</Tag>
+                <TextInput
+                  value={newCatLabel}
+                  onChangeText={setNewCatLabel}
+                  placeholder="e.g. Travel"
+                  placeholderTextColor={C.text3}
+                  style={[styles.textInput, { marginBottom: 12 }]}
+                  selectionColor={C.accent}
+                  autoFocus
+                />
+                <Button
+                  label="ADD CATEGORY"
+                  onPress={saveNewCategory}
+                  disabled={!newCatLabel.trim()}
+                  style={{ opacity: newCatLabel.trim() ? 1 : 0.35 }}
+                />
+              </View>
+            )}
+
             <View
               style={{
                 flexDirection: 'row',
@@ -299,7 +372,6 @@ function CalendarPicker({
     year > maxDate.getFullYear() ||
     (year === maxDate.getFullYear() && month >= maxDate.getMonth());
 
-  // Build rows
   const slots: (number | null)[] = [];
   for (let i = 0; i < startDow; i++) slots.push(null);
   for (let d = 1; d <= daysInM; d++) slots.push(d);
@@ -310,7 +382,6 @@ function CalendarPicker({
 
   return (
     <View style={styles.calWrap}>
-      {/* Month nav */}
       <View style={styles.calNav}>
         <Pressable onPress={onPrevMonth} style={styles.calNavBtn}>
           <Icon name="chevron-l" size={14} color={C.text2} />
@@ -325,7 +396,6 @@ function CalendarPicker({
         </Pressable>
       </View>
 
-      {/* DOW headers */}
       <View style={styles.calDowRow}>
         {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
           <T key={i} mono style={styles.calDow}>
@@ -334,7 +404,6 @@ function CalendarPicker({
         ))}
       </View>
 
-      {/* Day rows */}
       {rows.map((row, ri) => (
         <View key={ri} style={styles.calRow}>
           {row.map((day, ci) => {
@@ -452,6 +521,22 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
+    borderWidth: 1,
+    borderRadius: 2,
+  },
+  newCatPanel: {
+    marginTop: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: C.border2,
+    borderRadius: 2,
+    backgroundColor: C.surface,
+  },
+  glyphCell: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderRadius: 2,
   },

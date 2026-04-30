@@ -13,6 +13,7 @@ export type Transaction = {
   bank?: string | null;
   note?: string | null;
   raw_sms?: string | null;
+  sms_hash?: string | null;
 };
 
 function genId(): string {
@@ -25,25 +26,31 @@ function genId(): string {
 
 export async function insertTransaction(
   tx: Omit<Transaction, 'id'> & { id?: string }
-): Promise<Transaction> {
+): Promise<Transaction | null> {
   const db = await getDb();
   const id = tx.id ?? genId();
-  await db.runAsync(
-    `INSERT INTO transactions (id, amount, merchant, category, date, source, bank, note, raw_sms)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      id,
-      tx.amount,
-      tx.merchant,
-      tx.category,
-      tx.date,
-      tx.source,
-      tx.bank ?? null,
-      tx.note ?? null,
-      tx.raw_sms ?? null,
-    ]
-  );
-  return { ...tx, id };
+  try {
+    await db.runAsync(
+      `INSERT INTO transactions (id, amount, merchant, category, date, source, bank, note, raw_sms, sms_hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        tx.amount,
+        tx.merchant,
+        tx.category,
+        tx.date,
+        tx.source,
+        tx.bank ?? null,
+        tx.note ?? null,
+        tx.raw_sms ?? null,
+        tx.sms_hash ?? null,
+      ]
+    );
+    return { ...tx, id };
+  } catch {
+    // sms_hash unique constraint — duplicate SMS transaction
+    return null;
+  }
 }
 
 export async function updateTransaction(

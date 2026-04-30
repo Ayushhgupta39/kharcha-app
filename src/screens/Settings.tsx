@@ -19,11 +19,14 @@ import { formatAmount } from '../lib/format';
 import { useSettings } from '../store/settings';
 import { useBudgets } from '../store/budgets';
 import { useTransactions } from '../store/transactions';
+import { useCategories } from '../store/categories';
 import { SMS_SUPPORTED, ensureSmsPermission } from '../sms/reader';
 import { scanInboxAndEnqueue } from '../sms/ingest';
 import type { Budget } from '../db/budgets';
 
-type PickerKind = null | 'scanDepth' | 'budget';
+type PickerKind = null | 'scanDepth' | 'budget' | 'categories';
+
+const GLYPH_OPTIONS = ['◉', '◎', '◇', '◈', '▽', '▷', '◁', '△', '⬡', '⬢', '✦', '✧', '⊕', '⊗', '⊘'];
 
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -32,6 +35,10 @@ export function SettingsScreen() {
   const saveBudget = useBudgets((s) => s.save);
   const removeBudget = useBudgets((s) => s.remove);
   const refreshTxs = useTransactions((s) => s.refresh);
+  const cats = useCategories((s) => s.all);
+  const customCats = useCategories((s) => s.customs);
+  const addCategory = useCategories((s) => s.add);
+  const removeCategory = useCategories((s) => s.remove);
 
   const overall = useMemo(
     () => budgets.find((b) => b.kind === 'overall'),
@@ -41,6 +48,8 @@ export function SettingsScreen() {
   const [picker, setPicker] = useState<PickerKind>(null);
   const [draftAmount, setDraftAmount] = useState('');
   const [draftPct, setDraftPct] = useState('85');
+  const [newCatLabel, setNewCatLabel] = useState('');
+  const [newCatGlyph, setNewCatGlyph] = useState(GLYPH_OPTIONS[0]);
 
   const onToggleSms = async (v: boolean) => {
     if (!SMS_SUPPORTED) {
@@ -74,9 +83,44 @@ export function SettingsScreen() {
       settings.scanDepthDays === -1
         ? new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
         : Date.now() - settings.scanDepthDays * 86400000;
-    const n = await scanInboxAndEnqueue(since);
+    const { scanned, enqueued } = await scanInboxAndEnqueue(since);
     await settings.setLastScan(Date.now());
-    Alert.alert('Scan complete', `${n} new SMS enqueued.`);
+    Alert.alert('Scan complete', `Scanned ${scanned} SMS, ${enqueued} new transactions added.`);
+  };
+
+  const saveNewCategory = async () => {
+    const label = newCatLabel.trim();
+    if (!label) return;
+    const key = label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    if (!key) {
+      Alert.alert('Invalid name', 'Use letters or numbers.');
+      return;
+    }
+    if (cats.some((c) => c.key === key)) {
+      Alert.alert('Already exists', `A category named "${label}" already exists.`);
+      return;
+    }
+    await addCategory({ key, label, glyph: newCatGlyph });
+    setNewCatLabel('');
+    setNewCatGlyph(GLYPH_OPTIONS[0]);
+  };
+
+  const confirmDeleteCategory = (key: string, label: string) => {
+    Alert.alert(
+      `Remove "${label}"?`,
+      'All transactions in this category will be moved to Other.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            await removeCategory(key);
+            await refreshTxs();
+          },
+        },
+      ]
+    );
   };
 
   const openBudgetEditor = () => {
@@ -148,7 +192,6 @@ export function SettingsScreen() {
         Your kharcha
       </T>
 
-      {/* DATA */}
       <Section title="DATA">
         <ToggleRow
           label="SMS scanning"
@@ -182,7 +225,6 @@ export function SettingsScreen() {
         />
       </Section>
 
-      {/* BUDGET */}
       <Section title="BUDGET">
         <PressRow
           label="Monthly limit"
@@ -197,10 +239,14 @@ export function SettingsScreen() {
         />
       </Section>
 
-      {/* ACCOUNT */}
       <Section title="ACCOUNT">
         <StaticRow label="Currency" value="₹ INR" />
         <StaticRow label="Start of month" value="01" />
+        <PressRow
+          label="Manage categories"
+          value={`${customCats.length} custom`}
+          onPress={() => setPicker('categories')}
+        />
         <PressRow
           label="Export all data"
           value="→"
@@ -211,7 +257,6 @@ export function SettingsScreen() {
         />
       </Section>
 
-      {/* PRIVACY */}
       <Section title="PRIVACY">
         <StaticRow label="Storage" value="On-device only" on />
         <StaticRow label="Backup" value="Off" />
@@ -243,7 +288,6 @@ export function SettingsScreen() {
         </T>
       </View>
 
-      {/* Pickers */}
       <Sheet
         visible={picker === 'scanDepth'}
         title="SCAN DEPTH"
@@ -275,6 +319,78 @@ export function SettingsScreen() {
             );
           })}
         </View>
+      </Sheet>
+
+      <Sheet
+        visible={picker === 'categories'}
+        title="CATEGORIES"
+        onClose={() => {
+          setPicker(null);
+          setNewCatLabel('');
+          setNewCatGlyph(GLYPH_OPTIONS[0]);
+        }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+          <View style={{ padding: 20, gap: 0 }}>
+            <Tag style={{ marginBottom: 8 }}>BUILT-IN</Tag>
+            {cats.filter((c) => c.builtin).map((c) => (
+              <View key={c.key} style={[styles.catManageRow, { borderBottomColor: C.border }]}>
+                <T mono style={{ fontSize: 18, width: 28 }}>{c.glyph}</T>
+                <T style={{ fontSize: 13, flex: 1 }}>{c.label}</T>
+                {c.key === 'other' && (
+                  <T mono color={C.text4} style={{ fontSize: 10, letterSpacing: 1 }}>PROTECTED</T>
+                )}
+              </View>
+            ))}
+
+            <Tag style={{ marginTop: 16, marginBottom: 8 }}>CUSTOM</Tag>
+            {customCats.length === 0 && (
+              <T color={C.text3} style={{ fontSize: 13, marginBottom: 10 }}>No custom categories yet.</T>
+            )}
+            {customCats.map((c) => (
+              <View key={c.key} style={[styles.catManageRow, { borderBottomColor: C.border }]}>
+                <T mono style={{ fontSize: 18, width: 28 }}>{c.glyph}</T>
+                <T style={{ fontSize: 13, flex: 1 }}>{c.label}</T>
+                <Pressable
+                  onPress={() => confirmDeleteCategory(c.key, c.label)}
+                  style={{ padding: 4 }}>
+                  <Icon name="x" size={16} color={C.danger} />
+                </Pressable>
+              </View>
+            ))}
+
+            <Tag style={{ marginTop: 16, marginBottom: 8 }}>ADD NEW</Tag>
+            <Tag style={{ marginBottom: 6 }}>GLYPH</Tag>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+              {GLYPH_OPTIONS.map((g) => (
+                <Pressable
+                  key={g}
+                  onPress={() => setNewCatGlyph(g)}
+                  style={[
+                    styles.glyphCell,
+                    { borderColor: newCatGlyph === g ? C.accent : C.border2,
+                      backgroundColor: newCatGlyph === g ? C.accentGlow : C.surface },
+                  ]}>
+                  <T mono style={{ fontSize: 16, color: newCatGlyph === g ? C.accent : C.text2 }}>{g}</T>
+                </Pressable>
+              ))}
+            </View>
+            <Tag style={{ marginBottom: 6 }}>NAME</Tag>
+            <TextInput
+              value={newCatLabel}
+              onChangeText={setNewCatLabel}
+              placeholder="e.g. Travel"
+              placeholderTextColor={C.text4}
+              style={styles.input}
+              selectionColor={C.accent}
+            />
+            <Button
+              label="ADD CATEGORY"
+              onPress={saveNewCategory}
+              disabled={!newCatLabel.trim()}
+              style={{ marginTop: 14, opacity: newCatLabel.trim() ? 1 : 0.35 }}
+            />
+          </View>
+        </ScrollView>
       </Sheet>
 
       <Sheet
@@ -484,5 +600,20 @@ const styles = StyleSheet.create({
     borderColor: C.border2,
     borderRadius: 2,
     backgroundColor: C.surface,
+  },
+  catManageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    gap: 10,
+  },
+  glyphCell: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: 2,
   },
 });

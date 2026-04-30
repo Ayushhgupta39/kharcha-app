@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ScrollView, View, TextInput, StyleSheet } from 'react-native';
+import { Pressable, ScrollView, View, TextInput, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { T, Tag } from '../components/Text';
 import { CategoryGlyph } from '../components/CategoryGlyph';
@@ -11,7 +11,7 @@ import { formatAmount } from '../lib/format';
 import { getCategory } from '../lib/categories';
 import { useTransactions } from '../store/transactions';
 import { useCategories } from '../store/categories';
-import { format, parseISO, subDays, startOfMonth, endOfMonth, startOfYear } from 'date-fns';
+import { format, parseISO, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import type { Transaction } from '../db/transactions';
 
 type RangeKey = 'D' | 'W' | 'M' | 'Y' | 'C';
@@ -24,20 +24,34 @@ type Window = {
   bucketFmt: string;
 };
 
+// Returns 'YYYY-MM-DD' in local time for a given Date or ISO string.
+function localDateKey(d: Date | string): string {
+  const dt = typeof d === 'string' ? new Date(d) : d;
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const day = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function txMatchesLocalDate(t: Transaction, iso: string): boolean {
+  return localDateKey(t.date) === iso;
+}
+
+function txInLocalDateRange(t: Transaction, startIso: string, endIso: string): boolean {
+  const k = localDateKey(t.date);
+  return k >= startIso && k <= endIso;
+}
+
 function buildDaily(txs: Transaction[], n: number): Window {
   const now = new Date();
   const buckets: Bucket[] = [];
   for (let i = n - 1; i >= 0; i--) {
     const d = subDays(now, i);
-    const iso = format(d, 'yyyy-MM-dd');
+    const iso = localDateKey(d);
     const total = txs
-      .filter((t) => t.date.startsWith(iso))
+      .filter((t) => txMatchesLocalDate(t, iso))
       .reduce((s, t) => s + t.amount, 0);
-    buckets.push({
-      label: format(d, 'dd'),
-      total,
-      dateIso: iso,
-    });
+    buckets.push({ label: format(d, 'dd'), total, dateIso: iso });
   }
   return {
     start: buckets[0].dateIso!,
@@ -55,22 +69,15 @@ function buildMonthly(txs: Transaction[]): Window {
   const days = end.getDate();
   const buckets: Bucket[] = [];
   for (let d = 1; d <= days; d++) {
-    const iso = format(
-      new Date(start.getFullYear(), start.getMonth(), d),
-      'yyyy-MM-dd'
-    );
+    const iso = localDateKey(new Date(start.getFullYear(), start.getMonth(), d));
     const total = txs
-      .filter((t) => t.date.startsWith(iso))
+      .filter((t) => txMatchesLocalDate(t, iso))
       .reduce((s, t) => s + t.amount, 0);
-    buckets.push({
-      label: d % 5 === 0 || d === 1 ? String(d) : '',
-      total,
-      dateIso: iso,
-    });
+    buckets.push({ label: d % 5 === 0 || d === 1 ? String(d) : '', total, dateIso: iso });
   }
   return {
-    start: format(start, 'yyyy-MM-dd'),
-    end: format(end, 'yyyy-MM-dd'),
+    start: localDateKey(start),
+    end: localDateKey(end),
     label: format(now, 'MMMM yyyy').toUpperCase(),
     buckets,
     bucketFmt: 'DAY',
@@ -84,12 +91,12 @@ function buildYearly(txs: Transaction[]): Window {
   const buckets: Bucket[] = months.map((m, i) => {
     const mm = String(i + 1).padStart(2, '0');
     const total = txs
-      .filter((t) => t.date.startsWith(`${year}-${mm}`))
+      .filter((t) => localDateKey(t.date).startsWith(`${year}-${mm}`))
       .reduce((s, t) => s + t.amount, 0);
     return { label: m, total };
   });
   return {
-    start: format(startOfYear(now), 'yyyy-MM-dd'),
+    start: `${year}-01-01`,
     end: `${year}-12-31`,
     label: String(year),
     buckets,
@@ -108,28 +115,17 @@ function buildCustom(txs: Transaction[], s: string, e: string): Window {
   for (let i = 0; i < days; i++) {
     const d = new Date(start);
     d.setDate(d.getDate() + i);
-    const iso = format(d, 'yyyy-MM-dd');
+    const iso = localDateKey(d);
     const total = txs
-      .filter((t) => t.date.startsWith(iso))
+      .filter((t) => txMatchesLocalDate(t, iso))
       .reduce((s, t) => s + t.amount, 0);
     buckets.push({
-      label:
-        days <= 14
-          ? format(d, 'dd')
-          : d.getDate() === 1 || i === 0
-            ? String(d.getDate())
-            : '',
+      label: days <= 14 ? format(d, 'dd') : d.getDate() === 1 || i === 0 ? String(d.getDate()) : '',
       total,
       dateIso: iso,
     });
   }
-  return {
-    start: s,
-    end: e,
-    label: 'CUSTOM RANGE',
-    buckets,
-    bucketFmt: 'DAY',
-  };
+  return { start: s, end: e, label: 'CUSTOM RANGE', buckets, bucketFmt: 'DAY' };
 }
 
 function topMerchants(txs: Transaction[]) {
@@ -152,7 +148,12 @@ function defaultCustomRange() {
   };
 }
 
-export function InsightsScreen() {
+type Props = {
+  onOpenCategory: (category: string, txs: import('../db/transactions').Transaction[]) => void;
+  onOpenMerchant: (merchant: string, txs: import('../db/transactions').Transaction[]) => void;
+};
+
+export function InsightsScreen({ onOpenCategory, onOpenMerchant }: Props) {
   const insets = useSafeAreaInsets();
   const txs = useTransactions((s) => s.transactions);
   const customs = useCategories((s) => s.customs);
@@ -176,8 +177,7 @@ export function InsightsScreen() {
   const avg = activeBuckets > 0 ? total / activeBuckets : 0;
 
   const filtered = useMemo(
-    () =>
-      txs.filter((t) => t.date >= start && t.date <= end + 'T23:59:59'),
+    () => txs.filter((t) => txInLocalDateRange(t, start, end)),
     [txs, start, end]
   );
 
@@ -189,7 +189,7 @@ export function InsightsScreen() {
     return { catSorted: sorted, catTotals: ct, catSum: sum };
   }, [filtered]);
 
-  const topM = useMemo(() => topMerchants(filtered).slice(0, 5), [filtered]);
+  const topM = useMemo(() => topMerchants(filtered), [filtered]);
 
   return (
     <ScrollView
@@ -199,7 +199,6 @@ export function InsightsScreen() {
         paddingBottom: 24,
       }}
       showsVerticalScrollIndicator={false}>
-      {/* Header */}
       <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10 }}>
         <Tag style={{ marginBottom: 4 }}>INSIGHTS</Tag>
         <View
@@ -238,7 +237,6 @@ export function InsightsScreen() {
         </T>
       </View>
 
-      {/* Range selector */}
       <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
         <RangeChips
           value={range}
@@ -264,7 +262,6 @@ export function InsightsScreen() {
         ) : null}
       </View>
 
-      {/* Bars */}
       <View style={{ marginTop: 22 }}>
         <View
           style={{
@@ -308,7 +305,6 @@ export function InsightsScreen() {
         </View>
       </View>
 
-      {/* By category */}
       <LabeledRule
         label="BY CATEGORY"
         right={
@@ -322,11 +318,13 @@ export function InsightsScreen() {
           const amt = catTotals[c];
           const pct = (amt / catSum) * 100;
           const cat = getCategory(c, customs);
-          const txCount = filtered.filter((t) => t.category === c).length;
+          const catTxs = filtered.filter((t) => t.category === c);
+          const txCount = catTxs.length;
           const isLast = i === catSorted.length - 1;
           return (
-            <View
+            <Pressable
               key={c}
+              onPress={() => onOpenCategory(c, catTxs)}
               style={{
                 paddingBottom: 14,
                 marginBottom: 14,
@@ -366,7 +364,7 @@ export function InsightsScreen() {
                   }}
                 />
               </View>
-            </View>
+            </Pressable>
           );
         })}
         {catSorted.length === 0 ? (
@@ -384,41 +382,51 @@ export function InsightsScreen() {
         ) : null}
       </View>
 
-      {/* Top merchants */}
-      <LabeledRule label="TOP MERCHANTS" />
+      <LabeledRule
+        label="BY MERCHANT"
+        right={
+          <T mono color={C.text3} style={{ fontSize: 10 }}>
+            {topM.length}
+          </T>
+        }
+      />
       <View style={{ paddingHorizontal: 20, paddingBottom: 24 }}>
-        {topM.map((m, i) => (
-          <View
-            key={m.name}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 12,
-              paddingVertical: 10,
-              borderBottomWidth: i === topM.length - 1 ? 0 : 1,
-              borderBottomColor: C.border,
-            }}>
-            <T mono color={C.text4} style={{ fontSize: 10, width: 18 }}>
-              {String(i + 1).padStart(2, '0')}
-            </T>
-            <T style={{ flex: 1, fontSize: 13, color: C.text }} numberOfLines={1}>
-              {m.name}
-            </T>
-            <T mono color={C.text3} style={{ fontSize: 10 }}>
-              {m.count}×
-            </T>
-            <T
-              mono
+        {topM.map((m, i) => {
+          const merchantTxs = filtered.filter((t) => t.merchant === m.name);
+          return (
+            <Pressable
+              key={m.name}
+              onPress={() => onOpenMerchant(m.name, merchantTxs)}
               style={{
-                fontSize: 13,
-                minWidth: 70,
-                textAlign: 'right',
-                color: C.text,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+                paddingVertical: 10,
+                borderBottomWidth: i === topM.length - 1 ? 0 : 1,
+                borderBottomColor: C.border,
               }}>
-              {formatAmount(m.total)}
-            </T>
-          </View>
-        ))}
+              <T mono color={C.text4} style={{ fontSize: 10, width: 18 }}>
+                {String(i + 1).padStart(2, '0')}
+              </T>
+              <T style={{ flex: 1, fontSize: 13, color: C.text }} numberOfLines={1}>
+                {m.name}
+              </T>
+              <T mono color={C.text3} style={{ fontSize: 10 }}>
+                {m.count}×
+              </T>
+              <T
+                mono
+                style={{
+                  fontSize: 13,
+                  minWidth: 70,
+                  textAlign: 'right',
+                  color: C.text,
+                }}>
+                {formatAmount(m.total)}
+              </T>
+            </Pressable>
+          );
+        })}
         {topM.length === 0 ? (
           <T
             mono

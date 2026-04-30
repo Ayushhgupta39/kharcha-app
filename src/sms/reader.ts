@@ -1,12 +1,5 @@
 import { Platform, PermissionsAndroid } from 'react-native';
 
-// SMS read is Android-only. iOS does not expose inbox access.
-// On Android, `react-native-get-sms-android` is the common bridge used in
-// production. It must be installed via a dev/prebuild flow (not Expo Go).
-//
-// This module dynamically requires the native bridge so the app still boots
-// on iOS and inside Expo Go (where the bridge won't be present).
-
 export const SMS_SUPPORTED = Platform.OS === 'android';
 
 export type RawSms = {
@@ -39,7 +32,6 @@ export async function ensureSmsPermission(): Promise<boolean> {
 function loadNativeBridge(): any | null {
   if (!SMS_SUPPORTED) return null;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const SmsAndroid = require('react-native-get-sms-android');
     return SmsAndroid?.default ?? SmsAndroid;
   } catch {
@@ -47,36 +39,50 @@ function loadNativeBridge(): any | null {
   }
 }
 
+type TraiCategory = 'transactional' | 'service' | 'promotional' | 'government' | 'unknown';
+
+function traiCategory(address: string): TraiCategory {
+  if (!address.includes('-')) return 'unknown';
+  const parts = address.toUpperCase().split('-');
+  const suffix = parts[parts.length - 1];
+  if (suffix === 'T') return 'transactional';
+  if (suffix === 'S') return 'service';
+  if (suffix === 'P') return 'promotional';
+  if (suffix === 'G') return 'government';
+  return 'unknown';
+}
+
+function isFinancialSender(address: string | undefined): boolean {
+  if (!address) return true;
+  const clean = address.replace(/\s/g, '');
+  if (/^\+?91?\d{10}$/.test(clean)) return false;
+  if (/^\d+$/.test(clean)) return false;
+  return /^[A-Z]{2}-[A-Z]/i.test(clean);
+}
+
 export async function readSmsSince(sinceEpochMs: number): Promise<RawSms[]> {
   const bridge = loadNativeBridge();
-  console.log("BRIDGE: ", bridge)
   if (!bridge) return [];
-  
+
   return new Promise<RawSms[]>((resolve) => {
-    const filter = {
-      box: 'inbox',
-      minDate: sinceEpochMs,
-      maxCount: 500,
-    };
-     console.log("IN REAS SMS: ",bridge.list(
-      JSON.stringify(filter),
-      () => resolve([]),
-      (_count: number, raw: string) => {
-        try {
-          const arr = JSON.parse(raw);
-          resolve(Array.isArray(arr) ? arr : []);
-        } catch {
-          resolve([]);
-        }
-      }
-    ))
+    const filter = { box: 'inbox', minDate: sinceEpochMs, maxCount: 500 };
     bridge.list(
       JSON.stringify(filter),
       () => resolve([]),
       (_count: number, raw: string) => {
         try {
-          const arr = JSON.parse(raw);
-          resolve(Array.isArray(arr) ? arr : []);
+          const arr: RawSms[] = JSON.parse(raw);
+          if (!Array.isArray(arr)) { resolve([]); return; }
+
+          const filtered = arr.filter(s => {
+            const addr = s.address ?? '';
+            // Drop promotional SMS immediately — TRAI guarantee
+            if (traiCategory(addr) === 'promotional') return false;
+            // Keep only financial senders
+            return isFinancialSender(addr);
+          });
+
+          resolve(filtered);
         } catch {
           resolve([]);
         }

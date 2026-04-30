@@ -34,6 +34,14 @@ export function TxRow({ tx, onPress, customs = [] }: Props) {
           style={{ fontSize: 14 }}>
           {tx.merchant}
         </T>
+        {tx.note ? (
+          <T
+            color={C.text3}
+            numberOfLines={1}
+            style={{ fontSize: 12, marginTop: 1 }}>
+            {tx.note}
+          </T>
+        ) : null}
         <View style={styles.metaRow}>
           <T mono color={C.text3} style={{ fontSize: 11 }}>
             {formatTime(tx.date)}

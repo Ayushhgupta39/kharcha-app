@@ -66,8 +66,10 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
     const todayTotal = todayTxs.reduce((s, t) => s + t.amount, 0);
     const yesterdayTotal = yesterdayTxs.reduce((s, t) => s + t.amount, 0);
     const monthAvg = monthTotal / todayDay;
-    const selIso = format(new Date(year, month - 1, selectedDay), 'yyyy-MM-dd');
-    const selectedDayTxs = inMonth.filter((t) => t.date.startsWith(selIso));
+    const selectedDayTxs = inMonth.filter((t) => {
+      const d = new Date(t.date);
+      return d.getFullYear() === year && d.getMonth() + 1 === month && d.getDate() === selectedDay;
+    });
     const selectedDayTotal = selectedDayTxs.reduce((s, t) => s + t.amount, 0);
     return {
       todayTotal,
@@ -101,7 +103,6 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
       style={{ flex: 1, backgroundColor: C.bg }}
       contentContainerStyle={{ paddingTop: insets.top }}
       showsVerticalScrollIndicator={false}>
-      {/* Header */}
       <View style={styles.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <View style={styles.logoSquare}>
@@ -134,7 +135,6 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
         </Pressable>
       </View>
 
-      {/* Hero */}
       <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 }}>
         <View style={styles.heroMeta}>
           <Tag>
@@ -187,7 +187,6 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
         </View>
       </View>
 
-      {/* Budget strip */}
       {budgetAmount > 0 ? (
         <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
           <View style={styles.budgetMeta}>
@@ -250,7 +249,6 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
         </View>
       )}
 
-      {/* Heatmap */}
       <View style={{ marginTop: 28 }}>
         <View style={styles.heatHeader}>
           <Tag>
@@ -269,7 +267,6 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
           onSelectDay={setSelectedDay}
         />
 
-        {/* Selected day preview */}
         <View style={{ paddingHorizontal: 20, paddingTop: 14 }}>
           <View style={styles.selBox}>
             <View style={[styles.selHeader, { marginBottom: 0 }]}>
@@ -297,7 +294,6 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
         </View>
       </View>
 
-      {/* Recent */}
       <LabeledRule
         label={selectedDay === todayDay ? 'TODAY' : format(new Date(year, month - 1, selectedDay), 'd MMM').toUpperCase()}
         right={

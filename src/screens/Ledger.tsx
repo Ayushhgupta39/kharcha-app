@@ -23,8 +23,16 @@ type Props = {
   onOpenTx: (id: string) => void;
 };
 
+function localDateKey(iso: string): string {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function dayHeader(iso: string): string {
-  const d = parseISO(iso);
+  const d = new Date(iso);
   if (isToday(d)) return 'TODAY';
   if (isYesterday(d)) return 'YESTERDAY';
   return format(d, 'EEE, d MMM').toUpperCase();
@@ -62,7 +70,7 @@ export function LedgerScreen({ onOpenTx }: Props) {
   const items: ListItem[] = useMemo(() => {
     const grouped: Record<string, typeof filtered> = {};
     for (const t of filtered) {
-      const k = t.date.slice(0, 10);
+      const k = localDateKey(t.date);
       (grouped[k] ??= []).push(t);
     }
     const days = Object.keys(grouped).sort().reverse();
@@ -95,7 +103,6 @@ export function LedgerScreen({ onOpenTx }: Props) {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
-      {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View
           style={{
@@ -141,7 +148,6 @@ export function LedgerScreen({ onOpenTx }: Props) {
         </View>
       </View>
 
-      {/* Source toggle */}
       <View style={styles.toggleRow}>
         {(
           [
@@ -176,7 +182,6 @@ export function LedgerScreen({ onOpenTx }: Props) {
         })}
       </View>
 
-      {/* Category chips */}
       <View style={{ borderBottomWidth: 1, borderBottomColor: C.border }}>
         <ScrollView
           horizontal
@@ -238,7 +243,6 @@ export function LedgerScreen({ onOpenTx }: Props) {
         </ScrollView>
       </View>
 
-      {/* List */}
       <FlatList
         data={items}
         keyExtractor={(i) => i.key}

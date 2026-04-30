@@ -21,7 +21,16 @@ export async function insertCustomCategory(c: {
   );
 }
 
+export async function reassignCategory(from: string, to: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE transactions SET category = ? WHERE category = ?`,
+    [to, from]
+  );
+}
+
 export async function deleteCustomCategory(key: string): Promise<void> {
   const db = await getDb();
+  await reassignCategory(key, 'other');
   await db.runAsync(`DELETE FROM custom_categories WHERE key = ?`, [key]);
 }

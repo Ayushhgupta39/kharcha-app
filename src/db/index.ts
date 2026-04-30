@@ -26,12 +26,14 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
       bank          TEXT,
       note          TEXT,
       raw_sms       TEXT,
+      sms_hash      TEXT,
       created_at    TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
     CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(date);
     CREATE INDEX IF NOT EXISTS idx_tx_category ON transactions(category);
     CREATE INDEX IF NOT EXISTS idx_tx_merchant ON transactions(merchant);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_tx_sms_hash ON transactions(sms_hash) WHERE sms_hash IS NOT NULL;
 
     CREATE TABLE IF NOT EXISTS pending_sms (
       id            TEXT PRIMARY KEY,

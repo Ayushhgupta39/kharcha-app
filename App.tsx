@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, BackHandler } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
@@ -30,6 +30,8 @@ import { LedgerScreen } from './src/screens/Ledger';
 import { InsightsScreen } from './src/screens/Insights';
 import { SettingsScreen } from './src/screens/Settings';
 import { TxDetailScreen } from './src/screens/TxDetail';
+import { CategorySheet } from './src/screens/CategorySheet';
+import { MerchantSheet } from './src/screens/MerchantSheet';
 import { PendingSheet } from './src/screens/PendingSheet';
 import { ManualSheet } from './src/screens/ManualSheet';
 import { BottomNav, type Tab } from './src/components/BottomNav';
@@ -89,6 +91,8 @@ function Root() {
   const [tab, setTab] = useState<Tab>('home');
   const [openTxId, setOpenTxId] = useState<string | null>(null);
   const [openTx, setOpenTx] = useState<Transaction | null>(null);
+  const [openCategory, setOpenCategory] = useState<{ key: string; txs: Transaction[] } | null>(null);
+  const [openMerchant, setOpenMerchant] = useState<{ name: string; txs: Transaction[] } | null>(null);
   const [pendingOpen, setPendingOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
 
@@ -103,12 +107,42 @@ function Root() {
     })();
   }, [openTxId]);
 
-  // Refresh when Tx is closed so list reflects edits
   useEffect(() => {
     if (openTxId === null) {
       useTransactions.getState().refresh();
     }
   }, [openTxId]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (openTxId) {
+        setOpenTxId(null);
+        return true;
+      }
+      if (openCategory) {
+        setOpenCategory(null);
+        return true;
+      }
+      if (openMerchant) {
+        setOpenMerchant(null);
+        return true;
+      }
+      if (pendingOpen) {
+        setPendingOpen(false);
+        return true;
+      }
+      if (manualOpen) {
+        setManualOpen(false);
+        return true;
+      }
+      if (tab !== 'home') {
+        setTab('home');
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [openTxId, openCategory, openMerchant, pendingOpen, manualOpen, tab]);
 
   const tabContent = useMemo(() => {
     switch (tab) {
@@ -123,7 +157,18 @@ function Root() {
       case 'txns':
         return <LedgerScreen onOpenTx={setOpenTxId} />;
       case 'stats':
-        return <InsightsScreen />;
+        return (
+          <InsightsScreen
+            onOpenCategory={(key, txs) => {
+              const sorted = [...txs].sort((a, b) => b.amount - a.amount);
+              setOpenCategory({ key, txs: sorted });
+            }}
+            onOpenMerchant={(name, txs) => {
+              const sorted = [...txs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+              setOpenMerchant({ name, txs: sorted });
+            }}
+          />
+        );
       case 'settings':
         return <SettingsScreen />;
     }
@@ -145,6 +190,32 @@ function Root() {
         <TxDetailScreen
           tx={openTx}
           onBack={() => setOpenTxId(null)}
+        />
+      </View>
+    );
+  }
+
+  if (openCategory) {
+    return (
+      <View style={{ flex: 1, backgroundColor: C.bg }}>
+        <CategorySheet
+          category={openCategory.key}
+          txs={openCategory.txs}
+          onBack={() => setOpenCategory(null)}
+          onOpenTx={setOpenTxId}
+        />
+      </View>
+    );
+  }
+
+  if (openMerchant) {
+    return (
+      <View style={{ flex: 1, backgroundColor: C.bg }}>
+        <MerchantSheet
+          merchant={openMerchant.name}
+          txs={openMerchant.txs}
+          onBack={() => setOpenMerchant(null)}
+          onOpenTx={setOpenTxId}
         />
       </View>
     );

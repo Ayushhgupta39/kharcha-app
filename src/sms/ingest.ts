@@ -32,7 +32,7 @@ export async function scanInboxAndEnqueue(
       });
       if (inserted) enqueued++;
     } else {
-      await insertTransaction({
+      const inserted = await insertTransaction({
         amount: parsed.amount,
         merchant: parsed.merchant,
         category,
@@ -40,8 +40,9 @@ export async function scanInboxAndEnqueue(
         source: 'sms',
         bank: parsed.bank,
         raw_sms: parsed.raw,
+        sms_hash: parsed.hash,
       });
-      enqueued++;
+      if (inserted) enqueued++;
     }
   }
   return { scanned: raws.length, enqueued };
