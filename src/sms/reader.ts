@@ -68,22 +68,25 @@ export async function readSmsSince(sinceEpochMs: number): Promise<RawSms[]> {
     const filter = { box: 'inbox', minDate: sinceEpochMs, maxCount: 500 };
     bridge.list(
       JSON.stringify(filter),
-      () => resolve([]),
+      (err: any) => {
+        resolve([]);
+      },
       (_count: number, raw: string) => {
         try {
           const arr: RawSms[] = JSON.parse(raw);
-          if (!Array.isArray(arr)) { resolve([]); return; }
+          if (!Array.isArray(arr)) {
+            resolve([]);
+            return;
+          }
 
           const filtered = arr.filter(s => {
             const addr = s.address ?? '';
-            // Drop promotional SMS immediately — TRAI guarantee
             if (traiCategory(addr) === 'promotional') return false;
-            // Keep only financial senders
             return isFinancialSender(addr);
           });
 
           resolve(filtered);
-        } catch {
+        } catch (e) {
           resolve([]);
         }
       }

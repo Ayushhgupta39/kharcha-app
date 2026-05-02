@@ -14,7 +14,7 @@ import { TxRow } from '../components/TxRow';
 import { LabeledRule } from '../components/LabeledRule';
 import { HeatmapMonth } from '../components/Heatmap';
 import { C } from '../lib/tokens';
-import { formatAmount } from '../lib/format';
+import { formatAmount, formatAmountCompact } from '../lib/format';
 import { useTransactions } from '../store/transactions';
 import { usePending } from '../store/pending';
 import { useBudgets } from '../store/budgets';
@@ -42,9 +42,11 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
 
   const {
     todayTotal,
-    monthTotal,
+    monthExpense,
+    monthIncome,
     selectedDayTxs,
-    selectedDayTotal,
+    selectedDayDebit,
+    selectedDayCredit,
     yesterdayTotal,
     monthAvg,
   } = useMemo(() => {
@@ -58,24 +60,30 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
     const yEnd = endOfDay(yest).toISOString();
 
     const inMonth = txs.filter(
-      (t) => t.date >= monthStart && t.date <= monthEnd && t.category !== 'transfer'
+      (t) => t.date >= monthStart && t.date <= monthEnd
     );
-    const todayTxs = inMonth.filter((t) => t.date >= todayStart && t.date <= todayEndIso);
-    const yesterdayTxs = inMonth.filter((t) => t.date >= yStart && t.date <= yEnd);
-    const monthTotal = inMonth.reduce((s, t) => s + t.amount, 0);
-    const todayTotal = todayTxs.reduce((s, t) => s + t.amount, 0);
-    const yesterdayTotal = yesterdayTxs.reduce((s, t) => s + t.amount, 0);
-    const monthAvg = monthTotal / todayDay;
+    const inMonthDebits = inMonth.filter((t) => t.type !== 'credit' && t.category !== 'transfer');
+    const inMonthCredits = inMonth.filter((t) => t.type === 'credit');
+    const todayDebits = inMonthDebits.filter((t) => t.date >= todayStart && t.date <= todayEndIso);
+    const yesterdayDebits = inMonthDebits.filter((t) => t.date >= yStart && t.date <= yEnd);
+    const monthExpense = inMonthDebits.reduce((s, t) => s + t.amount, 0);
+    const monthIncome = inMonthCredits.reduce((s, t) => s + t.amount, 0);
+    const todayTotal = todayDebits.reduce((s, t) => s + t.amount, 0);
+    const yesterdayTotal = yesterdayDebits.reduce((s, t) => s + t.amount, 0);
+    const monthAvg = monthExpense / todayDay;
     const selectedDayTxs = inMonth.filter((t) => {
       const d = new Date(t.date);
       return d.getFullYear() === year && d.getMonth() + 1 === month && d.getDate() === selectedDay;
     });
-    const selectedDayTotal = selectedDayTxs.reduce((s, t) => s + t.amount, 0);
+    const selectedDayDebit = selectedDayTxs.filter((t) => t.type !== 'credit' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
+    const selectedDayCredit = selectedDayTxs.filter((t) => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
     return {
       todayTotal,
-      monthTotal,
+      monthExpense,
+      monthIncome,
       selectedDayTxs,
-      selectedDayTotal,
+      selectedDayDebit,
+      selectedDayCredit,
       yesterdayTotal,
       monthAvg,
     };
@@ -84,12 +92,12 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
   const overallBudget = budgets.find((b) => b.kind === 'overall');
   const budgetAmount = overallBudget?.amount ?? 0;
   const budgetPct = budgetAmount
-    ? Math.min(100, (monthTotal / budgetAmount) * 100)
+    ? Math.min(100, (monthExpense / budgetAmount) * 100)
     : 0;
   const daysInMonth = new Date(year, month, 0).getDate();
   const daysLeft = Math.max(1, daysInMonth - todayDay);
   const dailyBurn = budgetAmount
-    ? Math.max(0, (budgetAmount - monthTotal) / daysLeft)
+    ? Math.max(0, (budgetAmount - monthExpense) / daysLeft)
     : 0;
 
   const deltaPct =
@@ -146,24 +154,18 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
             {selectedDayTxs.length} TXNS
           </T>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-          <T
-            mono
-            color={C.text3}
-            style={{ fontSize: 40, lineHeight: 40, marginRight: 4 }}>
-            ₹
-          </T>
-          <T
-            mono
-            style={{
-              fontSize: 64,
-              lineHeight: 64,
-              letterSpacing: -1.8,
-              color: C.text,
-            }}>
-            {Math.round(selectedDayTotal / 100).toLocaleString('en-IN')}
-          </T>
-        </View>
+        <T
+          mono
+          style={{
+            fontSize: 64,
+            lineHeight: 64,
+            letterSpacing: -1.8,
+            color: C.text,
+          }}
+          adjustsFontSizeToFit
+          numberOfLines={1}>
+          {formatAmountCompact(selectedDayDebit)}
+        </T>
         <View style={styles.heroFoot}>
           {selectedDay === todayDay && yesterdayTotal > 0 ? (
             <View
@@ -195,11 +197,11 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
             </Tag>
             <T mono style={{ fontSize: 11, color: C.text2 }}>
               <T mono color={C.text} style={{ fontSize: 11 }}>
-                {formatAmount(monthTotal)}
+                {formatAmountCompact(monthExpense)}
               </T>
               <T mono color={C.text4} style={{ fontSize: 11 }}>
                 {' / '}
-                {formatAmount(budgetAmount)}
+                {formatAmountCompact(budgetAmount)}
               </T>
             </T>
           </View>
@@ -249,6 +251,14 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
         </View>
       )}
 
+      <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
+        <MonthSummary
+          month={format(now, 'MMMM').toUpperCase()}
+          income={monthIncome}
+          expense={monthExpense}
+        />
+      </View>
+
       <View style={{ marginTop: 28 }}>
         <View style={styles.heatHeader}>
           <Tag>
@@ -286,9 +296,27 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
                   </T>
                 ) : null}
               </T>
-              <T mono style={{ fontSize: 18, color: C.text }}>
-                {formatAmount(selectedDayTotal)}
-              </T>
+              <View style={{ alignItems: 'flex-end', gap: 3 }}>
+                <T mono style={{ fontSize: 18, color: C.text }}>
+                  {formatAmount(selectedDayDebit)}
+                </T>
+                {selectedDayCredit > 0 ? (
+                  <>
+                    <T mono style={{ fontSize: 11, color: '#34C759' }}>
+                      +{formatAmount(selectedDayCredit)} IN
+                    </T>
+                    {selectedDayCredit > selectedDayDebit ? (
+                      <T mono style={{ fontSize: 10, color: '#34C759', letterSpacing: 0.5 }}>
+                        +{formatAmount(selectedDayCredit - selectedDayDebit)} SAVED
+                      </T>
+                    ) : (
+                      <T mono style={{ fontSize: 10, color: C.text3, letterSpacing: 0.5 }}>
+                        {formatAmount(selectedDayDebit - selectedDayCredit)} NET
+                      </T>
+                    )}
+                  </>
+                ) : null}
+              </View>
             </View>
           </View>
         </View>
@@ -335,6 +363,66 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
     </ScrollView>
   );
 }
+
+function MonthSummary({ month, income, expense }: { month: string; income: number; expense: number }) {
+  const net = income - expense;
+  const isPositive = net >= 0;
+  return (
+    <View style={summaryStyles.wrap}>
+      <View style={summaryStyles.row}>
+        <View style={summaryStyles.col}>
+          <T mono color={C.text3} style={{ fontSize: 9, letterSpacing: 1, marginBottom: 4 }}>
+            {month} INCOME
+          </T>
+          <T mono weight="600" style={{ fontSize: 16, color: '#34C759' }} adjustsFontSizeToFit numberOfLines={1}>
+            +{formatAmountCompact(income)}
+          </T>
+        </View>
+        <View style={summaryStyles.divider} />
+        <View style={summaryStyles.col}>
+          <T mono color={C.text3} style={{ fontSize: 9, letterSpacing: 1, marginBottom: 4 }}>
+            {month} SPENT
+          </T>
+          <T mono weight="600" style={{ fontSize: 16, color: C.text }} adjustsFontSizeToFit numberOfLines={1}>
+            {formatAmountCompact(expense)}
+          </T>
+        </View>
+        <View style={summaryStyles.divider} />
+        <View style={[summaryStyles.col, { alignItems: 'flex-end' }]}>
+          <T mono color={C.text3} style={{ fontSize: 9, letterSpacing: 1, marginBottom: 4 }}>
+            {isPositive ? 'SAVED' : 'OVERSPENT'}
+          </T>
+          <T mono weight="600" style={{ fontSize: 16, color: isPositive ? '#34C759' : C.danger }} adjustsFontSizeToFit numberOfLines={1}>
+            {formatAmountCompact(Math.abs(net))}
+          </T>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const summaryStyles = StyleSheet.create({
+  wrap: {
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.surface,
+    borderRadius: 2,
+    padding: 14,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  col: {
+    flex: 1,
+  },
+  divider: {
+    width: 1,
+    height: 32,
+    backgroundColor: C.border,
+    marginHorizontal: 12,
+  },
+});
 
 const styles = StyleSheet.create({
   header: {

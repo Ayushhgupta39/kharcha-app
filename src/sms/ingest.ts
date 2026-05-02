@@ -12,12 +12,20 @@ export async function scanInboxAndEnqueue(
   const raws = await readSmsSince(sinceEpochMs);
   const manualApprove = useSettings.getState().manualApprove;
   let enqueued = 0;
+  let parsedCount = 0;
+  let sampleLogged = 0;
   for (const s of raws) {
     const parsed = parseSms(s.body, {
       sender: s.address,
       receivedAt: s.date ?? Date.now(),
     });
-    if (!parsed || parsed.kind !== 'debit') continue;
+    if (!parsed) {
+      if (sampleLogged < 5) {
+        sampleLogged++;
+      }
+      continue;
+    }
+    parsedCount++;
     const userCat = await getMerchantCategory(parsed.merchant);
     const category = userCat ?? parsed.category;
     if (manualApprove) {
@@ -34,6 +42,7 @@ export async function scanInboxAndEnqueue(
     } else {
       const inserted = await insertTransaction({
         amount: parsed.amount,
+        type: parsed.kind,
         merchant: parsed.merchant,
         category,
         date: parsed.date,

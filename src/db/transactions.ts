@@ -2,10 +2,12 @@ import type { SQLiteBindValue } from 'expo-sqlite';
 import { getDb } from './index';
 
 export type TxSource = 'sms' | 'manual';
+export type TxType = 'debit' | 'credit';
 
 export type Transaction = {
   id: string;
   amount: number; // paise
+  type: TxType;
   merchant: string;
   category: string;
   date: string; // ISO
@@ -31,11 +33,12 @@ export async function insertTransaction(
   const id = tx.id ?? genId();
   try {
     await db.runAsync(
-      `INSERT INTO transactions (id, amount, merchant, category, date, source, bank, note, raw_sms, sms_hash)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO transactions (id, amount, type, merchant, category, date, source, bank, note, raw_sms, sms_hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         tx.amount,
+        tx.type ?? 'debit',
         tx.merchant,
         tx.category,
         tx.date,
@@ -47,8 +50,10 @@ export async function insertTransaction(
       ]
     );
     return { ...tx, id };
-  } catch {
-    // sms_hash unique constraint — duplicate SMS transaction
+  } catch (e: any) {
+    if (!String(e?.message).includes('UNIQUE')) {
+      console.warn('[db] insertTransaction failed:', e?.message, tx.sms_hash);
+    }
     return null;
   }
 }

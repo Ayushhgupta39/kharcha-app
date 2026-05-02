@@ -67,10 +67,10 @@ export function TxRow({ tx, onPress, customs = [] }: Props) {
         weight="500"
         style={{
           fontSize: 15,
-          color: C.text,
+          color: tx.type === 'credit' ? '#34C759' : C.text,
           fontVariant: ['tabular-nums'],
         }}>
-        {formatAmount(tx.amount)}
+        {tx.type === 'credit' ? '+' : ''}{formatAmount(tx.amount)}
       </T>
     </Pressable>
   );

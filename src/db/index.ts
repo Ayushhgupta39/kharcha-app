@@ -12,6 +12,11 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase> {
 }
 
 async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
+  // Idempotent column additions — ignore if already exists
+  try {
+    await db.execAsync(`ALTER TABLE transactions ADD COLUMN type TEXT NOT NULL DEFAULT 'debit'`);
+  } catch { /* column already exists */ }
+
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
@@ -19,6 +24,7 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
     CREATE TABLE IF NOT EXISTS transactions (
       id            TEXT PRIMARY KEY,
       amount        INTEGER NOT NULL,
+      type          TEXT NOT NULL DEFAULT 'debit',
       merchant      TEXT NOT NULL,
       category      TEXT NOT NULL,
       date          TEXT NOT NULL,

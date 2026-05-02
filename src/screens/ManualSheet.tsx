@@ -38,6 +38,7 @@ export function ManualSheet({ visible, onClose }: Props) {
 
   const today = new Date();
 
+  const [txType, setTxType] = useState<'debit' | 'credit'>('debit');
   const [amount, setAmount] = useState('');
   const [merchant, setMerchant] = useState('');
   const [category, setCategory] = useState<string>('food');
@@ -51,6 +52,7 @@ export function ManualSheet({ visible, onClose }: Props) {
   const valid = amount && amountNum > 0 && merchant.trim().length > 0;
 
   const reset = () => {
+    setTxType('debit');
     setAmount('');
     setMerchant('');
     setCategory('food');
@@ -88,6 +90,7 @@ export function ManualSheet({ visible, onClose }: Props) {
     d.setHours(today.getHours(), today.getMinutes(), today.getSeconds());
     await add({
       amount: Math.round(amountNum * 100),
+      type: txType,
       merchant: merchant.trim(),
       category,
       date: d.toISOString(),
@@ -140,7 +143,42 @@ export function ManualSheet({ visible, onClose }: Props) {
             }}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}>
-            <Tag style={{ marginBottom: 10 }}>AMOUNT</Tag>
+            <View style={styles.typeToggle}>
+              {(['debit', 'credit'] as const).map((t) => {
+                const active = txType === t;
+                return (
+                  <Pressable
+                    key={t}
+                    onPress={() => setTxType(t)}
+                    style={[
+                      styles.typeBtn,
+                      {
+                        backgroundColor: active
+                          ? t === 'credit' ? 'rgba(52,199,89,0.12)' : C.surface2
+                          : 'transparent',
+                        borderColor: active
+                          ? t === 'credit' ? '#34C759' : C.border2
+                          : C.border,
+                      },
+                    ]}>
+                    <T
+                      mono
+                      weight="600"
+                      style={{
+                        fontSize: 11,
+                        letterSpacing: 1,
+                        color: active
+                          ? t === 'credit' ? '#34C759' : C.text
+                          : C.text3,
+                      }}>
+                      {t === 'debit' ? '− EXPENSE' : '+ INCOME'}
+                    </T>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Tag style={{ marginBottom: 10, marginTop: 22 }}>AMOUNT</Tag>
             <View style={styles.amountRow}>
               <T
                 mono
@@ -470,6 +508,17 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
+  },
+  typeToggle: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  typeBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 2,
   },
   amountRow: {
     flexDirection: 'row',

@@ -38,6 +38,7 @@ export function HeatmapMonth({
 
   const totals: Record<number, number> = {};
   for (const t of txs) {
+    if (t.type === 'credit' || t.category === 'transfer') continue;
     const d = new Date(t.date);
     if (d.getMonth() + 1 === month && d.getFullYear() === year) {
       const k = d.getDate();

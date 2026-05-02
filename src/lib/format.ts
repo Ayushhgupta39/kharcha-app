@@ -11,6 +11,20 @@ export function formatAmount(paise: number, opts: { signed?: boolean } = {}): st
   return sign + '₹' + rupees.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 }
 
+// Compact format for UI display: up to 99,999 shown as-is, then K / L / Cr
+export function formatAmountCompact(paise: number): string {
+  const rupees = Math.abs(paise) / 100;
+  if (rupees < 1_00_000) {
+    return '₹' + rupees.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+  }
+  if (rupees < 1_00_00_000) {
+    const l = rupees / 1_00_000;
+    return '₹' + (l >= 10 ? l.toFixed(1) : l.toFixed(2)).replace(/\.?0+$/, '') + 'L';
+  }
+  const cr = rupees / 1_00_00_000;
+  return '₹' + (cr >= 10 ? cr.toFixed(1) : cr.toFixed(2)).replace(/\.?0+$/, '') + 'Cr';
+}
+
 export function formatAmountDetailed(paise: number): string {
   const rupees = Math.abs(paise) / 100;
   return (

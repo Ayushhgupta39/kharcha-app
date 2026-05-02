@@ -155,8 +155,14 @@ type Props = {
 
 export function InsightsScreen({ onOpenCategory, onOpenMerchant }: Props) {
   const insets = useSafeAreaInsets();
-  const txs = useTransactions((s) => s.transactions);
+  const allTxs = useTransactions((s) => s.transactions);
   const customs = useCategories((s) => s.customs);
+
+  // Insights is expenses-only: exclude credits and transfers
+  const txs = useMemo(
+    () => allTxs.filter((t) => t.type !== 'credit' && t.category !== 'transfer'),
+    [allTxs]
+  );
 
   const [range, setRange] = useState<RangeKey>('M');
   const [{ start: cStart, end: cEnd }, setCustom] = useState(defaultCustomRange);

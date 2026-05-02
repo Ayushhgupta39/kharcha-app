@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator, BackHandler } from 'react-native';
+import { View, ActivityIndicator, BackHandler, AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
@@ -16,6 +16,8 @@ import {
 } from '@expo-google-fonts/jetbrains-mono';
 
 import { getDb } from './src/db';
+import { scanInboxAndEnqueue } from './src/sms/ingest';
+import { SMS_SUPPORTED } from './src/sms/reader';
 import { getTransaction, type Transaction } from './src/db/transactions';
 import { useSettings } from './src/store/settings';
 import { useTransactions } from './src/store/transactions';
@@ -85,6 +87,35 @@ export default function App() {
   );
 }
 
+async function runSmsSync() {
+  if (!SMS_SUPPORTED) return;
+  const settings = useSettings.getState();
+  if (!settings.smsEnabled) return;
+  const since = settings.lastScanEpoch || Date.now() - 90 * 24 * 60 * 60 * 1000;
+  await scanInboxAndEnqueue(since);
+  await settings.setLastScan(Date.now());
+  await useTransactions.getState().refresh();
+  await usePending.getState().refresh();
+}
+
+function useSmsSync() {
+  const appState = useRef(AppState.currentState);
+
+  useEffect(() => {
+    runSmsSync();
+  }, []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (appState.current.match(/inactive|background/) && next === 'active') {
+        runSmsSync();
+      }
+      appState.current = next;
+    });
+    return () => sub.remove();
+  }, []);
+}
+
 function Root() {
   const onboarded = useSettings((s) => s.onboarded);
   const setOnboarded = useSettings((s) => s.setOnboarded);
@@ -95,6 +126,8 @@ function Root() {
   const [openMerchant, setOpenMerchant] = useState<{ name: string; txs: Transaction[] } | null>(null);
   const [pendingOpen, setPendingOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
+
+  useSmsSync();
 
   useEffect(() => {
     if (!openTxId) {

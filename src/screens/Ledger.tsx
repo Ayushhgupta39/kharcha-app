@@ -39,7 +39,7 @@ function dayHeader(iso: string): string {
 }
 
 type ListItem =
-  | { kind: 'header'; key: string; label: string; total: number }
+  | { kind: 'header'; key: string; label: string; debit: number; credit: number }
   | { kind: 'row'; key: string; tx: import('../db/transactions').Transaction };
 
 export function LedgerScreen({ onOpenTx }: Props) {
@@ -65,7 +65,8 @@ export function LedgerScreen({ onOpenTx }: Props) {
     });
   }, [txs, search, filterCat, source]);
 
-  const total = filtered.reduce((s, t) => s + t.amount, 0);
+  const totalDebit = filtered.filter((t) => t.type !== 'credit').reduce((s, t) => s + t.amount, 0);
+  const totalCredit = filtered.filter((t) => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
 
   const items: ListItem[] = useMemo(() => {
     const grouped: Record<string, typeof filtered> = {};
@@ -77,12 +78,14 @@ export function LedgerScreen({ onOpenTx }: Props) {
     const out: ListItem[] = [];
     for (const d of days) {
       const dayTxs = grouped[d];
-      const dayTotal = dayTxs.reduce((s, t) => s + t.amount, 0);
+      const dayDebit = dayTxs.filter((t) => t.type !== 'credit').reduce((s, t) => s + t.amount, 0);
+      const dayCredit = dayTxs.filter((t) => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
       out.push({
         kind: 'header',
         key: 'h-' + d,
         label: dayHeader(dayTxs[0].date),
-        total: dayTotal,
+        debit: dayDebit,
+        credit: dayCredit,
       });
       for (const t of dayTxs) out.push({ kind: 'row', key: t.id, tx: t });
     }
@@ -114,8 +117,13 @@ export function LedgerScreen({ onOpenTx }: Props) {
           <View>
             <Tag style={{ marginBottom: 4 }}>LEDGER</Tag>
             <T mono style={{ fontSize: 26, letterSpacing: -0.6 }}>
-              {formatAmount(total)}
+              {formatAmount(totalDebit)}
             </T>
+            {totalCredit > 0 ? (
+              <T mono style={{ fontSize: 13, color: '#34C759', marginTop: 2 }}>
+                +{formatAmount(totalCredit)}
+              </T>
+            ) : null}
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <T mono color={C.text3} style={{ fontSize: 10, marginBottom: 2 }}>
@@ -251,9 +259,16 @@ export function LedgerScreen({ onOpenTx }: Props) {
             return (
               <View style={styles.dayHeader}>
                 <Tag>{item.label}</Tag>
-                <T mono color={C.text2} style={{ fontSize: 11 }}>
-                  {formatAmount(item.total)}
-                </T>
+                <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                  <T mono color={C.text2} style={{ fontSize: 11 }}>
+                    {formatAmount(item.debit)}
+                  </T>
+                  {item.credit > 0 ? (
+                    <T mono style={{ fontSize: 10, color: '#34C759' }}>
+                      +{formatAmount(item.credit)}
+                    </T>
+                  ) : null}
+                </View>
               </View>
             );
           }

@@ -80,7 +80,8 @@ function parseSender(address: string | null | undefined): SenderInfo {
     }
   }
 
-  const isFinancial = bank !== null;
+  // Only TRAI-format senders pass: exactly XX-[A-Z]... (2-letter prefix, dash, alpha body)
+  const isFinancial = /^[A-Z]{2}-[A-Z]/i.test(up);
   return { suffix, bank, isFinancial };
 }
 
@@ -91,6 +92,14 @@ const BODY_NOISE: RegExp[] = [
   /\bkindly\s+(clear|pay|settle)\b/i,
   /\bloan\s+(offer|approv|disburse)/i,
   /apply\s+now/i,
+  // Non-transaction service/notice messages
+  /\backnowledgement\b/i,
+  /\busage\s*&?\s*transaction\s+limit\b/i,
+  /\byour\s+request\b/i,
+  /\bhas\s+been\s+updated\b/i,
+  /\bdue\s+(date|amount)\b/i,
+  /\bminimum\s+(amount|due)\b/i,
+  /\bstatement\s+(generated|ready|available)\b/i,
 ];
 
 const AMOUNT_RE =
@@ -104,20 +113,37 @@ function extractAmount(body: string): number | null {
 }
 
 const DEBIT_SIGNALS = [
-  /\b(debited|debit|spent|paid|payment|purchase|charged|withdrawn|used|transaction)\b/i,
-  /\b(transaction|txn)\s+(of|for|at)\b/i,
+  /\b(debited|debit|spent|purchase|charged|withdrawn)\b/i,
+  // "transaction of/for/at" and standalone "transaction" (e.g. "credit card transaction of Rs X")
+  /\b(transaction|txn)\b/i,
   /\bdr\.?\b/i,
+  // "used on", "successful" spend confirmations
+  /\bis\s+successful\b/i,
 ];
-const CREDIT_SIGNALS = [
-  /\b(credited|credit|received|deposited|refund|cashback|reversal)\b/i,
+// Unambiguous credit signals — past tense or explicit incoming money words
+// NOTE: "credit" alone is NOT here because "credit card" is a payment instrument, not a direction
+const CREDIT_SIGNALS_STRONG = [
+  /\b(credited|deposited|refund|cashback|reversal|reversed)\b/i,
   /\bcr\.?\b/i,
+];
+// Weaker credit signals — only win if no debit signal present
+const CREDIT_SIGNALS_WEAK = [
+  // "received" alone: wins only when no debit signal
+  /\breceived\b/i,
+  // explicit payment-received phrasing
+  /\bpayment\s+(of\s+\S+\s+)?(has\s+been\s+)?received\b/i,
 ];
 
 function detectKind(body: string): 'debit' | 'credit' | null {
-  const hasCredit = CREDIT_SIGNALS.some(r => r.test(body));
-  const hasDebit  = DEBIT_SIGNALS.some(r => r.test(body));
-  if (hasCredit && !hasDebit) return 'credit';
-  if (hasDebit)               return 'debit';
+  // Strong credit wins immediately — these words are unambiguous
+  if (CREDIT_SIGNALS_STRONG.some(r => r.test(body))) return 'credit';
+
+  // Debit beats weak credit
+  if (DEBIT_SIGNALS.some(r => r.test(body))) return 'debit';
+
+  // Weak credit only if no debit present
+  if (CREDIT_SIGNALS_WEAK.some(r => r.test(body))) return 'credit';
+
   return null;
 }
 
@@ -177,8 +203,6 @@ export function parseSms(
 
   if (sender.suffix === 'P') return null;
 
-  if (sender.suffix === 'S' && !sender.bank) return null;
-
   for (const re of BODY_NOISE) {
     if (re.test(raw)) return null;
   }
@@ -213,7 +237,9 @@ export function parseSms(
   }
 
   if (!kind) {
-    if (sender.suffix === 'T') kind = 'debit';
+    // T = transactional, S = service — both can carry transaction SMS
+    if (sender.suffix === 'T' || sender.suffix === 'S') kind = 'debit';
+    else if (!sender.suffix) kind = 'debit'; // unknown suffix, amount present — assume debit
     else return null;
   }
 

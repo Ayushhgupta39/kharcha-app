@@ -47,6 +47,7 @@ export const usePending = create<State & Actions>((set, get) => ({
     const category = overrides?.category ?? p.category;
     await insertTransaction({
       amount,
+      type: 'debit',
       merchant,
       category,
       date: p.date,
