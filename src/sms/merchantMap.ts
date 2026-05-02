@@ -131,24 +131,33 @@ export const MERCHANT_CATEGORY_MAP: Record<string, string> = {
   HEALTHIFYME: 'health',
   MEDPLUS: 'health',
 
-  // Transfers (not expenses)
+  // Transfer methods — category depends on direction; handled in lookupMerchantCategory
   UPI: 'transfer',
   NEFT: 'transfer',
   RTGS: 'transfer',
   IMPS: 'transfer',
 };
 
-export function lookupMerchantCategory(merchant: string): string | null {
+const TRANSFER_METHOD_KEYS = new Set(['UPI', 'NEFT', 'RTGS', 'IMPS']);
+
+export function lookupMerchantCategory(merchant: string, kind?: 'debit' | 'credit'): string | null {
   if (!merchant) return null;
   const key = merchant
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '')
     .trim();
   // Try direct
-  if (MERCHANT_CATEGORY_MAP[key]) return MERCHANT_CATEGORY_MAP[key];
+  const direct = MERCHANT_CATEGORY_MAP[key];
+  if (direct) {
+    if (TRANSFER_METHOD_KEYS.has(key) && kind === 'credit') return 'income_other';
+    return direct;
+  }
   // Try prefix / substring match
   for (const m of Object.keys(MERCHANT_CATEGORY_MAP)) {
-    if (key.includes(m)) return MERCHANT_CATEGORY_MAP[m];
+    if (key.includes(m)) {
+      if (TRANSFER_METHOD_KEYS.has(m) && kind === 'credit') return 'income_other';
+      return MERCHANT_CATEGORY_MAP[m];
+    }
   }
   return null;
 }

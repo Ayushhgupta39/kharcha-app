@@ -81,7 +81,8 @@ export async function readSmsSince(sinceEpochMs: number): Promise<RawSms[]> {
 
           const filtered = arr.filter(s => {
             const addr = s.address ?? '';
-            if (traiCategory(addr) === 'promotional') return false;
+            const cat = traiCategory(addr);
+            if (cat === 'promotional' || cat === 'government') return false;
             return isFinancialSender(addr);
           });
 

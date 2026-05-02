@@ -100,7 +100,55 @@ const BODY_NOISE: RegExp[] = [
   /\bdue\s+(date|amount)\b/i,
   /\bminimum\s+(amount|due)\b/i,
   /\bstatement\s+(generated|ready|available)\b/i,
+  // Promotional / marketing cues — telco recharge offers, etc.
+  /\b(recharge|prepaid|postpaid)\s+(now|today|offer|plan|pack)\b/i,
+  /\bspecial\s+offer\b/i,
+  /\bvalid\s+(till|until|upto)\b/i,
+  /\bavail\s+\d{1,3}\s*%/i,
+  /\bget\s+\d+\s*gb\b/i,
+  // Bill/tax notices that are reminders, not deductions
+  /\bplease\s+ignore\s+if\s+(already\s+)?paid\b/i,
+  /\bmake\s+payment\s+to\s+avail\b/i,
+  /\bproperty\s+tax\b/i,
+  /\bnagar\s+nigam\b/i,
+  /\bmunicipal(ity)?\b/i,
+  /\bfor\s+fy\s*\d{2,4}/i,
+  /\bpid\s+[A-Z0-9]{6,}/i,
+  // Short-link URLs are strong promo indicators; banks never include them
+  /\b(bit\.ly|tinyurl\.com|t\.co|goo\.gl|cutt\.ly|rb\.gy|ow\.ly)\b/i,
 ];
+
+// Devanagari range — Hindi/Marathi etc. Banks send transaction SMS in English / Latin.
+// Promotional SMS in Hindi (telco recharge, etc.) commonly carry ₹ amounts and slip
+// past the English noise patterns. If the body is mostly Devanagari, treat as non-txn.
+const DEVANAGARI_RE = /[ऀ-ॿ]/;
+function isMostlyDevanagari(body: string): boolean {
+  const letters = body.match(/[A-Za-zऀ-ॿ]/g);
+  if (!letters || letters.length === 0) return false;
+  const dev = letters.filter(c => DEVANAGARI_RE.test(c)).length;
+  return dev / letters.length > 0.3;
+}
+
+// Real bank/card txn SMS almost always include one of these structural markers.
+// If none are present AND no explicit debit/credit verb was found, the SMS is
+// probably a notice/promo that just happens to mention an amount.
+const TXN_STRUCTURE_RE = [
+  /\bA\/?[Cc]\b/,                       // A/c, A/C, AC
+  /\bacc(?:oun)?t\b/i,
+  /\bcard\b/i,
+  /\b(?:xx+|x{2,}|\*{2,})\d{3,}\b/,     // masked card/account tail e.g. xxxx1234
+  /\bUPI\b/i,
+  /\bIMPS\b/i,
+  /\bNEFT\b/i,
+  /\bRTGS\b/i,
+  /\bbal(?:ance)?\b/i,
+  /\bavl\s*bal\b/i,
+  /\btxn\s*(?:id|ref|no)\b/i,
+  /\bref(?:erence)?\s*(?:no|id|#)\b/i,
+];
+function hasTxnStructure(body: string): boolean {
+  return TXN_STRUCTURE_RE.some(r => r.test(body));
+}
 
 const AMOUNT_RE =
   /(?:Rs\.?\s*|INR\s*|₹\s*)([0-9,]+(?:\.[0-9]{1,2})?)/i;
@@ -149,7 +197,7 @@ function detectKind(body: string): 'debit' | 'credit' | null {
 
 const UPI_REF_RE = /UPI\/[A-Z0-9]+\/[0-9]+\/([^/\n.]+?)(?:\s+(?:Ref|Not\s+you)|\.|,|\n|$)/i;
 const ON_MERCHANT_RE =
-  /\b(?:on|at|to)\s+([A-Z][A-Za-z0-9&.'_-]+(?:\s+[A-Z][A-Za-z0-9&.'_-]+)?)(?=[\s.,!]|$)/;
+  /\b(?:on|at|to)\s+([A-Z][A-Za-z0-9&'_-]+(?:\s+[A-Z][A-Za-z0-9&'_-]+)?)(?=[\s.,!?]|$)/;
 
 const NOT_MERCHANT = new Set([
   'your', 'the', 'a', 'an', 'this', 'that', 'us', 'call',
@@ -201,7 +249,11 @@ export function parseSms(
 
   if (!sender.isFinancial) return null;
 
-  if (sender.suffix === 'P') return null;
+  // Drop promotional and government TRAI categories — neither carry user txns.
+  if (sender.suffix === 'P' || sender.suffix === 'G') return null;
+
+  // Hindi/Marathi promo (telco etc.) — banks never send Devanagari txn SMS.
+  if (isMostlyDevanagari(raw)) return null;
 
   for (const re of BODY_NOISE) {
     if (re.test(raw)) return null;
@@ -237,6 +289,11 @@ export function parseSms(
   }
 
   if (!kind) {
+    // No verb match. Only default to debit if the body carries txn-structure
+    // markers (A/c, card, UPI, balance, ref no, masked digits…). Otherwise the
+    // SMS is almost certainly a notice / reminder / promo that happens to
+    // mention an amount (e.g. "Your H.tax for PID … is Rs. 6158").
+    if (!hasTxnStructure(raw)) return null;
     // T = transactional, S = service — both can carry transaction SMS
     if (sender.suffix === 'T' || sender.suffix === 'S') kind = 'debit';
     else if (!sender.suffix) kind = 'debit'; // unknown suffix, amount present — assume debit
@@ -252,7 +309,7 @@ export function parseSms(
     'Unknown';
 
   const category =
-    lookupMerchantCategory(merchant) ?? (kind === 'credit' ? 'transfer' : 'other');
+    lookupMerchantCategory(merchant, kind) ?? (kind === 'credit' ? 'income_other' : 'other');
   const date = new Date(opts.receivedAt ?? Date.now()).toISOString();
 
   return {

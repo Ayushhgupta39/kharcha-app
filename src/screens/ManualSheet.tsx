@@ -17,6 +17,7 @@ import { Button } from '../components/Button';
 import { C, F } from '../lib/tokens';
 import { useCategories } from '../store/categories';
 import { useTransactions } from '../store/transactions';
+import { BUILTIN_INCOME_CATEGORIES } from '../lib/categories';
 
 const GLYPH_OPTIONS = ['◉', '◎', '◇', '◈', '▽', '▷', '◁', '△', '⬡', '⬢', '✦', '✧', '⊕', '⊗', '⊘'];
 
@@ -27,7 +28,7 @@ type Props = {
 
 export function ManualSheet({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
-  const cats = useCategories((s) => s.all);
+  const allCats = useCategories((s) => s.all);
   const customs = useCategories((s) => s.customs);
   const addCategory = useCategories((s) => s.add);
   const add = useTransactions((s) => s.add);
@@ -42,7 +43,13 @@ export function ManualSheet({ visible, onClose }: Props) {
   const [amount, setAmount] = useState('');
   const [merchant, setMerchant] = useState('');
   const [category, setCategory] = useState<string>('food');
+
   const [note, setNote] = useState('');
+
+  const incomeCatKeys = new Set(BUILTIN_INCOME_CATEGORIES.map((c) => c.key));
+  const cats = txType === 'credit'
+    ? [...BUILTIN_INCOME_CATEGORIES, ...customs]
+    : allCats.filter((c) => !incomeCatKeys.has(c.key));
   const [date, setDate] = useState<Date>(today);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [calYear, setCalYear] = useState(today.getFullYear());
@@ -72,7 +79,7 @@ export function ManualSheet({ visible, onClose }: Props) {
       Alert.alert('Invalid name', 'Use letters or numbers.');
       return;
     }
-    if (cats.some((c) => c.key === key)) {
+    if (allCats.some((c) => c.key === key)) {
       Alert.alert('Already exists', `A category named "${label}" already exists.`);
       return;
     }
@@ -149,7 +156,10 @@ export function ManualSheet({ visible, onClose }: Props) {
                 return (
                   <Pressable
                     key={t}
-                    onPress={() => setTxType(t)}
+                    onPress={() => {
+                      setTxType(t);
+                      setCategory(t === 'credit' ? 'salary' : 'food');
+                    }}
                     style={[
                       styles.typeBtn,
                       {
@@ -201,11 +211,11 @@ export function ManualSheet({ visible, onClose }: Props) {
               />
             </View>
 
-            <Tag style={{ marginBottom: 10, marginTop: 22 }}>MERCHANT</Tag>
+            <Tag style={{ marginBottom: 10, marginTop: 22 }}>{txType === 'credit' ? 'SOURCE' : 'MERCHANT'}</Tag>
             <TextInput
               value={merchant}
               onChangeText={setMerchant}
-              placeholder="Where did you spend?"
+              placeholder={txType === 'credit' ? 'Where did you earn?' : 'Where did you spend?'}
               placeholderTextColor={C.text3}
               style={styles.textInput}
               selectionColor={C.accent}

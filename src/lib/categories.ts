@@ -8,7 +8,13 @@ export type CategoryKey =
   | 'entertainment'
   | 'health'
   | 'transfer'
-  | 'other';
+  | 'other'
+  | 'salary'
+  | 'freelance'
+  | 'refund'
+  | 'investment'
+  | 'rental'
+  | 'income_other';
 
 export type Category = {
   key: string;
@@ -17,7 +23,7 @@ export type Category = {
   builtin: boolean;
 };
 
-export const BUILTIN_CATEGORIES: Category[] = [
+export const BUILTIN_EXPENSE_CATEGORIES: Category[] = [
   { key: 'food', label: 'Food', glyph: '◔', builtin: true },
   { key: 'transport', label: 'Transport', glyph: '◑', builtin: true },
   { key: 'shopping', label: 'Shopping', glyph: '◕', builtin: true },
@@ -28,6 +34,20 @@ export const BUILTIN_CATEGORIES: Category[] = [
   { key: 'health', label: 'Health', glyph: '＋', builtin: true },
   { key: 'transfer', label: 'Transfer', glyph: '⇄', builtin: true },
   { key: 'other', label: 'Other', glyph: '○', builtin: true },
+];
+
+export const BUILTIN_INCOME_CATEGORIES: Category[] = [
+  { key: 'salary', label: 'Salary', glyph: '◈', builtin: true },
+  { key: 'freelance', label: 'Freelance', glyph: '◕', builtin: true },
+  { key: 'refund', label: 'Refund', glyph: '⇄', builtin: true },
+  { key: 'investment', label: 'Investment', glyph: '▲', builtin: true },
+  { key: 'rental', label: 'Rental', glyph: '◼', builtin: true },
+  { key: 'income_other', label: 'Other', glyph: '○', builtin: true },
+];
+
+export const BUILTIN_CATEGORIES: Category[] = [
+  ...BUILTIN_EXPENSE_CATEGORIES,
+  ...BUILTIN_INCOME_CATEGORIES,
 ];
 
 export const CATEGORY_BY_KEY: Record<string, Category> = Object.fromEntries(
