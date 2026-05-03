@@ -171,7 +171,7 @@ const DEBIT_SIGNALS = [
 // Unambiguous credit signals — past tense or explicit incoming money words
 // NOTE: "credit" alone is NOT here because "credit card" is a payment instrument, not a direction
 const CREDIT_SIGNALS_STRONG = [
-  /\b(credited|deposited|refund|cashback|reversal|reversed)\b/i,
+  /\b(credited|deposited|cashback|reversal|reversed)\b/i,
   /\bcr\.?\b/i,
 ];
 // Weaker credit signals — only win if no debit signal present
@@ -196,8 +196,11 @@ function detectKind(body: string): 'debit' | 'credit' | null {
 }
 
 const UPI_REF_RE = /UPI\/[A-Z0-9]+\/[0-9]+\/([^/\n.]+?)(?:\s+(?:Ref|Not\s+you)|\.|,|\n|$)/i;
+// HDFC-style "To <MERCHANT NAME>" on its own line (multi-word, all-caps merchants).
+// Must come before ON_MERCHANT_RE so we don't truncate at 2 words.
+const TO_LINE_RE = /(?:^|\n)\s*to\s+([A-Z][A-Za-z0-9&'_.-]*(?:\s+[A-Z][A-Za-z0-9&'_.-]*){0,5})\s*(?=\n|$)/i;
 const ON_MERCHANT_RE =
-  /\b(?:on|at|to)\s+([A-Z][A-Za-z0-9&'_-]+(?:\s+[A-Z][A-Za-z0-9&'_-]+)?)(?=[\s.,!?]|$)/;
+  /\b(?:on|at|to)\s+([A-Z][A-Za-z0-9&'_-]+(?:\s+[A-Z][A-Za-z0-9&'_-]+)?)(?=[\s.,!?]|$)/i;
 
 const NOT_MERCHANT = new Set([
   'your', 'the', 'a', 'an', 'this', 'that', 'us', 'call',
@@ -207,6 +210,13 @@ const NOT_MERCHANT = new Set([
 function extractMerchant(body: string): string | null {
   const upi = body.match(UPI_REF_RE);
   if (upi) return upi[1].trim().replace(/\s+/g, ' ') || null;
+
+  const toLine = body.match(TO_LINE_RE);
+  if (toLine) {
+    const name = toLine[1].trim().replace(/\s+/g, ' ').replace(/[.,!]+$/, '');
+    const first = name.split(' ')[0].toLowerCase();
+    if (!NOT_MERCHANT.has(first)) return name;
+  }
 
   const on = body.match(ON_MERCHANT_RE);
   if (on) {

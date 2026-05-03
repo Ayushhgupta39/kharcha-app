@@ -42,7 +42,7 @@ export const BUILTIN_INCOME_CATEGORIES: Category[] = [
   { key: 'refund', label: 'Refund', glyph: '⇄', builtin: true },
   { key: 'investment', label: 'Investment', glyph: '▲', builtin: true },
   { key: 'rental', label: 'Rental', glyph: '◼', builtin: true },
-  { key: 'income_other', label: 'Other', glyph: '○', builtin: true },
+  { key: 'income_other', label: 'Income', glyph: '○', builtin: true },
 ];
 
 export const BUILTIN_CATEGORIES: Category[] = [

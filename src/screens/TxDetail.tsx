@@ -149,7 +149,11 @@ export function TxDetailScreen({ tx, onBack }: Props) {
                 style={[styles.amountInput, !valid && { color: C.danger }]}
               />
             ) : (
-              <T mono style={{ fontSize: 56, lineHeight: 54, letterSpacing: -1.6, color: C.text }}>
+              <T
+                mono
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={{ flexShrink: 1, fontSize: 56, lineHeight: 54, letterSpacing: -1.6, color: C.text }}>
                 {Math.round(tx.amount / 100).toLocaleString('en-IN')}
               </T>
             )}

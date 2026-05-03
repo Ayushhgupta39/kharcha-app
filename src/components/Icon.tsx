@@ -24,7 +24,8 @@ export type IconName =
   | 'shield'
   | 'lock'
   | 'sparkle'
-  | 'zap';
+  | 'zap'
+  | 'swap';
 
 type Props = {
   name: IconName;
@@ -208,6 +209,12 @@ export function Icon({
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24">
           <Path {...p} d="M13 2L3 14h9l-1 8 10-12h-9z" />
+        </Svg>
+      );
+    case 'swap':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24">
+          <Path {...p} d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
         </Svg>
       );
     default:

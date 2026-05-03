@@ -98,11 +98,18 @@ export function LedgerScreen({ onOpenTx }: Props) {
     for (const t of txs) m[t.category] = (m[t.category] ?? 0) + 1;
     return m;
   }, [txs]);
-  const topCats = useMemo(
-    () =>
-      Object.keys(catCounts).sort((a, b) => catCounts[b] - catCounts[a]),
-    [catCounts]
-  );
+  const topCats = useMemo(() => {
+    const INCOME_CATS = new Set(['salary', 'freelance', 'refund', 'investment', 'rental', 'income_other']);
+    return Object.keys(catCounts).sort((a, b) => {
+      const aIncome = INCOME_CATS.has(a);
+      const bIncome = INCOME_CATS.has(b);
+      const aOther = a === 'other' || a === 'income_other';
+      const bOther = b === 'other' || b === 'income_other';
+      if (aIncome !== bIncome) return aIncome ? -1 : 1;
+      if (aOther !== bOther) return aOther ? 1 : -1;
+      return catCounts[b] - catCounts[a];
+    });
+  }, [catCounts]);
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -189,7 +196,6 @@ export function LedgerScreen({ onOpenTx }: Props) {
           );
         })}
       </View>
-
       <View style={{ borderBottomWidth: 1, borderBottomColor: C.border }}>
         <ScrollView
           horizontal
@@ -204,8 +210,7 @@ export function LedgerScreen({ onOpenTx }: Props) {
             style={[
               styles.chip,
               {
-                backgroundColor:
-                  filterCat === null ? C.text : 'transparent',
+                backgroundColor: filterCat === null ? C.text : 'transparent',
                 borderColor: filterCat === null ? C.text : C.border2,
               },
             ]}>

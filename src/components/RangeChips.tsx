@@ -11,7 +11,7 @@ type Props = {
 export function RangeChips({
   value,
   onChange,
-  options = ['D', 'W', 'M', 'Y'],
+  options = ['W', '15D', 'M', 'Y'],
 }: Props) {
   return (
     <View style={styles.group}>

@@ -14,7 +14,7 @@ import { useCategories } from '../store/categories';
 import { format, parseISO, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import type { Transaction } from '../db/transactions';
 
-type RangeKey = 'D' | 'W' | 'M' | 'Y' | 'C';
+type RangeKey = 'W' | '15D' | 'M' | 'Y' | 'C';
 
 type Window = {
   start: string;
@@ -42,10 +42,10 @@ function txInLocalDateRange(t: Transaction, startIso: string, endIso: string): b
   return k >= startIso && k <= endIso;
 }
 
-function buildDaily(txs: Transaction[], n: number): Window {
+function buildLast15Days(txs: Transaction[]): Window {
   const now = new Date();
   const buckets: Bucket[] = [];
-  for (let i = n - 1; i >= 0; i--) {
+  for (let i = 14; i >= 0; i--) {
     const d = subDays(now, i);
     const iso = localDateKey(d);
     const total = txs
@@ -56,7 +56,27 @@ function buildDaily(txs: Transaction[], n: number): Window {
   return {
     start: buckets[0].dateIso!,
     end: buckets[buckets.length - 1].dateIso!,
-    label: `LAST ${n} DAYS`,
+    label: 'LAST 15 DAYS',
+    buckets,
+    bucketFmt: 'DAY',
+  };
+}
+
+function buildWeekly(txs: Transaction[]): Window {
+  const now = new Date();
+  const buckets: Bucket[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = subDays(now, i);
+    const iso = localDateKey(d);
+    const total = txs
+      .filter((t) => txMatchesLocalDate(t, iso))
+      .reduce((s, t) => s + t.amount, 0);
+    buckets.push({ label: format(d, 'EEE').toUpperCase().slice(0, 2), total, dateIso: iso });
+  }
+  return {
+    start: buckets[0].dateIso!,
+    end: buckets[buckets.length - 1].dateIso!,
+    label: 'THIS WEEK',
     buckets,
     bucketFmt: 'DAY',
   };
@@ -169,8 +189,8 @@ export function InsightsScreen({ onOpenCategory, onOpenMerchant }: Props) {
   const [selBar, setSelBar] = useState<number | null>(null);
 
   const window = useMemo<Window>(() => {
-    if (range === 'D') return buildDaily(txs, 7);
-    if (range === 'W') return buildDaily(txs, 14);
+    if (range === '15D') return buildLast15Days(txs);
+    if (range === 'W') return buildWeekly(txs);
     if (range === 'M') return buildMonthly(txs);
     if (range === 'Y') return buildYearly(txs);
     return buildCustom(txs, cStart, cEnd);
@@ -250,7 +270,7 @@ export function InsightsScreen({ onOpenCategory, onOpenMerchant }: Props) {
             setRange(v as RangeKey);
             setSelBar(null);
           }}
-          options={['D', 'W', 'M', 'Y', 'C']}
+          options={['W', '15D', 'M', 'Y', 'C']}
         />
         {range === 'C' ? (
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
