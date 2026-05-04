@@ -116,6 +116,11 @@ const BODY_NOISE: RegExp[] = [
   /\bpid\s+[A-Z0-9]{6,}/i,
   // Short-link URLs are strong promo indicators; banks never include them
   /\b(bit\.ly|tinyurl\.com|t\.co|goo\.gl|cutt\.ly|rb\.gy|ow\.ly)\b/i,
+  // Merchant order/booking confirmations (Zepto/Swiggy/etc. own SMS, not bank)
+  /\border\s+[A-Z0-9]{6,}\b/i,
+  /\bconfirmed\s+as\s+cod\b/i,
+  /\bcash\s+on\s+delivery\b/i,
+  /\bout\s+for\s+delivery\b/i,
 ];
 
 // Devanagari range — Hindi/Marathi etc. Banks send transaction SMS in English / Latin.
@@ -197,32 +202,114 @@ function detectKind(body: string): 'debit' | 'credit' | null {
 
 const UPI_REF_RE = /UPI\/[A-Z0-9]+\/[0-9]+\/([^/\n.]+?)(?:\s+(?:Ref|Not\s+you)|\.|,|\n|$)/i;
 // HDFC-style "To <MERCHANT NAME>" on its own line (multi-word, all-caps merchants).
-// Must come before ON_MERCHANT_RE so we don't truncate at 2 words.
-const TO_LINE_RE = /(?:^|\n)\s*to\s+([A-Z][A-Za-z0-9&'_.-]*(?:\s+[A-Z][A-Za-z0-9&'_.-]*){0,5})\s*(?=\n|$)/i;
+// Strict-case so prose words like "to mobile" / "to harshitkhera277" are skipped here
+// and handled by later, looser matchers.
+const TO_LINE_RE = /(?:^|\n)\s*To\s+([A-Z][A-Za-z0-9&'_.-]*(?:\s+[A-Z][A-Za-z0-9&'_.-]*){0,5})\s*(?=\n|$)/;
+// Strict-case (no /i) on the FIRST word so prose like "on your", "to mobile",
+// "at your" doesn't get captured. Subsequent words may be lower or mixed case
+// (Indian merchant names like "Shri abhyudaya udyama", "Mahendra kumar").
+// Trailing junk tokens ("is", "successful", "for"…) are stripped later by
+// cleanMerchantName.
 const ON_MERCHANT_RE =
-  /\b(?:on|at|to)\s+([A-Z][A-Za-z0-9&'_-]+(?:\s+[A-Z][A-Za-z0-9&'_-]+)?)(?=[\s.,!?]|$)/i;
+  /\b(?:on|at|to|On|At|To|ON|AT|TO)\s+([A-Z][A-Za-z0-9&'_-]+(?:\s+[A-Za-z][A-Za-z0-9&'_-]+){0,4})(?=[\s.,!?]|$)/g;
+// "; <NAME> credited" — ICICI P2P credit naming the sender.
+const SEMI_CREDITED_RE = /[;,]\s*([A-Z][A-Za-z0-9&'_.-]*(?:\s+[A-Z][A-Za-z0-9&'_.-]*){0,3})\s+credited\b/;
+// Standalone all-caps merchant block, often on its own line in card SMS
+// (e.g. Axis CC: "AMAZON MKTP", "BIG BAZAAR"). Must be 4+ chars and not a
+// known bank/section keyword.
+const ALLCAPS_MERCHANT_RE =
+  /(?:^|\n|\s)([A-Z][A-Z0-9&'_.-]{2,}(?:\s+[A-Z][A-Z0-9&'_.-]{1,}){0,4})(?=\s|\n|\.|,|$)/g;
 
 const NOT_MERCHANT = new Set([
-  'your', 'the', 'a', 'an', 'this', 'that', 'us', 'call',
-  'behalf', 'account', 'date', 'time',
+  'your', 'the', 'a', 'an', 'this', 'that', 'us', 'call', 'sms',
+  'behalf', 'account', 'date', 'time', 'mobile', 'card', 'credit', 'debit',
+  'no', 'no.', 'ref', 'ref.', 'ref#', 'rs', 'rs.', 'inr',
+  'avl', 'bal', 'limit', 'block', 'not', 'you', 'is', 'has', 'been',
+  'from', 'and', 'cr', 'cr.', 'dr', 'dr.', 'upi', 'imps', 'neft', 'rtgs',
 ]);
 
-function extractMerchant(body: string): string | null {
-  const upi = body.match(UPI_REF_RE);
-  if (upi) return upi[1].trim().replace(/\s+/g, ' ') || null;
+// Trailing tokens that clearly aren't part of a merchant name and should be
+// stripped (e.g. "Swiggy is" → "Swiggy", "Zomato successful" → "Zomato").
+const TRAILING_JUNK = new Set([
+  'is', 'was', 'has', 'have', 'for', 'on', 'at', 'to', 'of', 'in',
+  'successful', 'success', 'completed', 'done', 'today', 'now',
+  'and', 'with', 'by', 'from', 'the', 'a', 'an', 'ltd', 'limited',
+]);
 
-  const toLine = body.match(TO_LINE_RE);
-  if (toLine) {
-    const name = toLine[1].trim().replace(/\s+/g, ' ').replace(/[.,!]+$/, '');
-    const first = name.split(' ')[0].toLowerCase();
-    if (!NOT_MERCHANT.has(first)) return name;
+// Words that, even if uppercase, are never a merchant. Used to filter ALLCAPS_MERCHANT_RE.
+const ALLCAPS_BLOCKLIST = new Set([
+  'IST', 'PM', 'AM', 'INR', 'RS', 'UPI', 'IMPS', 'NEFT', 'RTGS',
+  'A/C', 'AC', 'OTP', 'SMS', 'CALL', 'BLOCK', 'NOT', 'YOU', 'REF',
+  'AVL', 'BAL', 'LIMIT', 'CARD', 'NO', 'DR', 'CR', 'TXN',
+  ...Object.values(ENTITY_MAP),
+]);
+
+function cleanMerchantName(raw: string): string {
+  let name = raw.trim().replace(/\s+/g, ' ').replace(/[.,!;:]+$/, '');
+  // Strip trailing junk tokens like "is", "successful", "for".
+  const parts = name.split(' ');
+  while (parts.length > 1 && TRAILING_JUNK.has(parts[parts.length - 1].toLowerCase())) {
+    parts.pop();
+  }
+  name = parts.join(' ');
+  return name;
+}
+
+function isUsableMerchant(name: string): boolean {
+  if (!name) return false;
+  const first = name.split(' ')[0].toLowerCase();
+  if (NOT_MERCHANT.has(first)) return false;
+  // Pure numeric or too short
+  if (/^\d+$/.test(name)) return false;
+  if (name.replace(/[^A-Za-z]/g, '').length < 2) return false;
+  // Masked account/card tails (XXXXX1234, xxxx0539, **0539, all-X strings)
+  if (/^[Xx*]{2,}\d*$/.test(name.replace(/\s+/g, ''))) return false;
+  if (/^[Xx*]+\d+$/.test(name.replace(/\s+/g, ''))) return false;
+  return true;
+}
+
+function extractMerchant(body: string): string | null {
+  // 1. UPI reference path — strongest signal.
+  const upi = body.match(UPI_REF_RE);
+  if (upi) {
+    const name = cleanMerchantName(upi[1]);
+    if (isUsableMerchant(name)) return name;
   }
 
-  const on = body.match(ON_MERCHANT_RE);
-  if (on) {
-    const name = on[1].trim().replace(/\s+/g, ' ').replace(/[.,!]+$/, '');
-    const first = name.split(' ')[0].toLowerCase();
-    if (!NOT_MERCHANT.has(first)) return name;
+  // 2. HDFC-style "To <NAME>" on its own line (strict case).
+  const toLine = body.match(TO_LINE_RE);
+  if (toLine) {
+    const name = cleanMerchantName(toLine[1]);
+    if (isUsableMerchant(name)) return name;
+  }
+
+  // 3. "; <NAME> credited" — ICICI P2P credit recipient/sender.
+  const semi = body.match(SEMI_CREDITED_RE);
+  if (semi) {
+    const name = cleanMerchantName(semi[1]);
+    if (isUsableMerchant(name)) return name;
+  }
+
+  // 4. Iterate every "on/at/to <Name>" match (strict case) and pick the first
+  //    one that survives the generic-word filter. Strict case prevents prose
+  //    like "to mobile" / "on your" from anchoring a match.
+  ON_MERCHANT_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = ON_MERCHANT_RE.exec(body)) !== null) {
+    const name = cleanMerchantName(m[1]);
+    if (isUsableMerchant(name)) return name;
+  }
+
+  // 5. All-caps merchant block (Axis CC: "AMAZON MKTP", "ZOMATO LIMITED").
+  ALLCAPS_MERCHANT_RE.lastIndex = 0;
+  while ((m = ALLCAPS_MERCHANT_RE.exec(body)) !== null) {
+    const candidate = m[1].trim();
+    const tokens = candidate.split(/\s+/);
+    // Reject if the whole match is just blocklisted tokens.
+    const meaningful = tokens.filter(t => !ALLCAPS_BLOCKLIST.has(t.replace(/[.,]/g, '')));
+    if (meaningful.length === 0) continue;
+    const name = cleanMerchantName(meaningful.join(' '));
+    if (isUsableMerchant(name)) return name;
   }
 
   return null;
