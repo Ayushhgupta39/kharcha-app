@@ -100,11 +100,8 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
     ? Math.max(0, (budgetAmount - monthExpense) / daysLeft)
     : 0;
 
-  const deltaPct =
-    yesterdayTotal > 0
-      ? Math.round(((todayTotal - yesterdayTotal) / yesterdayTotal) * 100)
-      : 0;
-  const deltaColor = deltaPct <= 0 ? C.accent : C.danger;
+  const deltaDiff = todayTotal - yesterdayTotal;
+  const deltaColor = deltaDiff <= 0 ? C.accent : C.danger;
 
   return (
     <ScrollView
@@ -178,8 +175,8 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
                 weight="600"
                 color={deltaColor}
                 style={{ fontSize: 10 }}>
-                {deltaPct > 0 ? '+' : deltaPct < 0 ? '−' : ''}
-                {Math.abs(deltaPct)}% VS YESTERDAY
+                {deltaDiff > 0 ? '+' : deltaDiff < 0 ? '−' : ''}
+                {formatAmountCompact(Math.abs(deltaDiff))} VS YESTERDAY
               </T>
             </View>
           ) : null}

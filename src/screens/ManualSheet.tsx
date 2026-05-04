@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import {
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   TextInput,
@@ -131,6 +133,9 @@ export function ManualSheet({ visible, onClose }: Props) {
           style={{ height: 60 + insets.top }}
           onPress={onClose}
         />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}>
         <View style={[styles.panel, { paddingBottom: insets.bottom }]}>
           <View style={styles.header}>
             <T mono weight="600" style={{ fontSize: 11, letterSpacing: 1.4 }}>
@@ -388,6 +393,7 @@ export function ManualSheet({ visible, onClose }: Props) {
             />
           </View>
         </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
