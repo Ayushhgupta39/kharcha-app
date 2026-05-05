@@ -13,6 +13,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     ...config.android,
-    package: IS_DEV ? 'com.kharcha.app.dev' : 'com.kharcha.app',
+    package: IS_DEV ? 'com.kharcha.app.dev' : 'com.kharcha.expense.app',
   },
 });
