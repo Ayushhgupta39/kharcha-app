@@ -65,12 +65,13 @@ export function OnboardingScreen({ onDone }: Props) {
     onDone();
   };
 
-  const padded = { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 20 };
+  const paddingTop = insets.top + 32;
+  const paddingBottom = Math.max(insets.bottom, 20);
 
   // Step 0 — intro
   if (step === 0) {
     return (
-      <View style={[styles.page, padded]}>
+      <View style={[styles.page, { paddingTop, paddingBottom }]}>
         <View style={styles.logoRow}>
           <View style={styles.logoSquare}>
             <T mono weight="700" style={{ color: '#0A0A0A', fontSize: 16 }}>K</T>
@@ -118,7 +119,7 @@ export function OnboardingScreen({ onDone }: Props) {
   // Step 2 — permission
   if (step === 2) {
     return (
-      <View style={[styles.page, padded]}>
+      <View style={[styles.page, { paddingTop, flex: 1 }]}>
         <Pressable
           onPress={() => setStep(1)}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 40 }}>
@@ -126,7 +127,7 @@ export function OnboardingScreen({ onDone }: Props) {
           <T mono color={C.text3} style={{ fontSize: 11, letterSpacing: 1.2 }}>BACK</T>
         </Pressable>
 
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
           <Tag style={{ marginBottom: 14 }}>03 / PERMISSION</Tag>
           <T style={{ fontSize: 30, lineHeight: 33, letterSpacing: -0.6, marginBottom: 18 }}>
             {SMS_SUPPORTED ? 'Allow SMS read access' : 'SMS read\nnot available on iOS'}
@@ -197,13 +198,14 @@ export function OnboardingScreen({ onDone }: Props) {
               <T color={C.text3} style={{ fontSize: 11 }}>Works offline.</T>
             </T>
           </View>
-          <View style={{ height: 28 }} />
         </ScrollView>
 
-        <Button
-          label={SMS_SUPPORTED ? 'ALLOW & CONTINUE' : 'CONTINUE'}
-          onPress={SMS_SUPPORTED ? handleAllow : handleManualOnly}
-        />
+        <View style={[styles.bottomBar, { paddingBottom: paddingBottom }]}>
+          <Button
+            label={SMS_SUPPORTED ? 'ALLOW & CONTINUE' : 'CONTINUE'}
+            onPress={SMS_SUPPORTED ? handleAllow : handleManualOnly}
+          />
+        </View>
       </View>
     );
   }
@@ -258,6 +260,7 @@ export function OnboardingScreen({ onDone }: Props) {
 }
 
 function PreferencesStep({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
+  const insets = useSafeAreaInsets();
   const settings = useSettings();
   const [manualApprove, setManualApprove] = useState(settings.manualApprove);
   const [depthIdx, setDepthIdx] = useState(() => {
@@ -275,12 +278,12 @@ function PreferencesStep({ onBack, onNext }: { onBack: () => void; onNext: () =>
     <View style={[styles.page, { flex: 1 }]}>
       <Pressable
         onPress={onBack}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 40, marginTop: 32 }}>
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 40, marginTop: insets.top + 32 }}>
         <ArrowLeft size={16} color={C.text3} />
         <T mono color={C.text3} style={{ fontSize: 11, letterSpacing: 1.2 }}>BACK</T>
       </Pressable>
 
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
         <Tag style={{ marginBottom: 14 }}>02 / PREFERENCES</Tag>
         <T style={{ fontSize: 30, lineHeight: 33, letterSpacing: -0.6, marginBottom: 8 }}>
           How should we handle transactions?
@@ -345,10 +348,11 @@ function PreferencesStep({ onBack, onNext }: { onBack: () => void; onNext: () =>
             );
           })}
         </View>
-        <View style={{ height: 12 }} />
       </ScrollView>
 
-      <Button label="NEXT →" onPress={handleNext} />
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+        <Button label="NEXT →" onPress={handleNext} />
+      </View>
     </View>
   );
 }
@@ -478,5 +482,13 @@ const styles = StyleSheet.create({
   },
   depthRowActive: {
     borderColor: C.accent,
+  },
+  bottomBar: {
+    marginHorizontal: -24,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+    backgroundColor: C.bg,
   },
 });

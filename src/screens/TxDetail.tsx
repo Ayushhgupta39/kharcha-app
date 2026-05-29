@@ -45,6 +45,7 @@ export function TxDetailScreen({ tx, onBack }: Props) {
   const [amountStr, setAmountStr] = useState(String(Math.round(tx.amount / 100)));
   const [merchant, setMerchant] = useState(tx.merchant);
   const [category, setCategory] = useState(tx.category);
+  const [txType, setTxType] = useState<'debit' | 'credit'>(tx.type ?? 'debit');
   const [note, setNote] = useState(tx.note ?? '');
   const [date, setDate] = useState<Date>(origDate);
   const [showCat, setShowCat] = useState(false);
@@ -61,6 +62,7 @@ export function TxDetailScreen({ tx, onBack }: Props) {
     setAmountStr(String(Math.round(tx.amount / 100)));
     setMerchant(tx.merchant);
     setCategory(tx.category);
+    setTxType(tx.type ?? 'debit');
     setNote(tx.note ?? '');
     setDate(origDate);
     setShowCat(false);
@@ -78,6 +80,7 @@ export function TxDetailScreen({ tx, onBack }: Props) {
         amount: Math.round(amountNum * 100),
         merchant: merchant.trim(),
         category,
+        type: txType,
         note,
         date: newDate.toISOString(),
       },
@@ -132,9 +135,44 @@ export function TxDetailScreen({ tx, onBack }: Props) {
 
         {/* Hero */}
         <View style={{ paddingHorizontal: 20, paddingTop: 28, paddingBottom: 24 }}>
-          <Tag style={{ marginBottom: 10 }}>
-            {tx.category === 'transfer' ? 'TRANSFER' : 'DEBITED'}
-          </Tag>
+          {editing ? (
+            <View style={styles.typeToggle}>
+              {(['debit', 'credit'] as const).map((t) => {
+                const active = txType === t;
+                return (
+                  <Pressable
+                    key={t}
+                    onPress={() => setTxType(t)}
+                    style={[
+                      styles.typeBtn,
+                      {
+                        backgroundColor: active
+                          ? t === 'credit' ? '#34C759' : C.danger
+                          : C.surface,
+                        borderColor: active
+                          ? t === 'credit' ? '#34C759' : C.danger
+                          : C.border2,
+                      },
+                    ]}>
+                    <T
+                      mono
+                      weight="600"
+                      style={{
+                        fontSize: 10,
+                        letterSpacing: 1.2,
+                        color: active ? '#0A0A0A' : C.text3,
+                      }}>
+                      {t === 'debit' ? 'DEBIT' : 'CREDIT'}
+                    </T>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : (
+            <Tag style={{ marginBottom: 10 }}>
+              {tx.type === 'credit' ? 'CREDITED' : tx.category === 'transfer' ? 'TRANSFER' : 'DEBITED'}
+            </Tag>
+          )}
 
           {/* Amount */}
           <View style={styles.amountRow}>
@@ -558,6 +596,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: F.inter,
     textAlignVertical: 'top',
+  },
+  typeToggle: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 14,
+  },
+  typeBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderRadius: 2,
   },
   saveBar: {
     paddingHorizontal: 20,

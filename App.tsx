@@ -217,59 +217,55 @@ function Root() {
     );
   }
 
-  if (openTx) {
-    return (
-      <View style={{ flex: 1, backgroundColor: C.bg }}>
-        <TxDetailScreen
-          tx={openTx}
-          onBack={() => setOpenTxId(null)}
-        />
-      </View>
-    );
-  }
-
-  if (openCategory) {
-    return (
-      <View style={{ flex: 1, backgroundColor: C.bg }}>
-        <CategorySheet
-          category={openCategory.key}
-          txs={openCategory.txs}
-          onBack={() => setOpenCategory(null)}
-          onOpenTx={setOpenTxId}
-        />
-      </View>
-    );
-  }
-
-  if (openMerchant) {
-    return (
-      <View style={{ flex: 1, backgroundColor: C.bg }}>
-        <MerchantSheet
-          merchant={openMerchant.name}
-          txs={openMerchant.txs}
-          onBack={() => setOpenMerchant(null)}
-          onOpenTx={setOpenTxId}
-        />
-      </View>
-    );
-  }
+  const overlay = openTx ? (
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <TxDetailScreen
+        tx={openTx}
+        onBack={() => setOpenTxId(null)}
+      />
+    </View>
+  ) : openCategory ? (
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <CategorySheet
+        category={openCategory.key}
+        txs={openCategory.txs}
+        onBack={() => setOpenCategory(null)}
+        onOpenTx={setOpenTxId}
+      />
+    </View>
+  ) : openMerchant ? (
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <MerchantSheet
+        merchant={openMerchant.name}
+        txs={openMerchant.txs}
+        onBack={() => setOpenMerchant(null)}
+        onOpenTx={setOpenTxId}
+      />
+    </View>
+  ) : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
-      <View style={{ flex: 1 }}>{tabContent}</View>
-      <BottomNav
-        active={tab}
-        onTab={setTab}
-        onAdd={() => setManualOpen(true)}
-      />
-      <PendingSheet
-        visible={pendingOpen}
-        onClose={() => setPendingOpen(false)}
-      />
-      <ManualSheet
-        visible={manualOpen}
-        onClose={() => setManualOpen(false)}
-      />
+      <View style={{ flex: 1, display: overlay ? 'none' : 'flex' }}>{tabContent}</View>
+      {overlay ? (
+        <View style={{ flex: 1 }}>{overlay}</View>
+      ) : (
+        <>
+          <BottomNav
+            active={tab}
+            onTab={setTab}
+            onAdd={() => setManualOpen(true)}
+          />
+          <PendingSheet
+            visible={pendingOpen}
+            onClose={() => setPendingOpen(false)}
+          />
+          <ManualSheet
+            visible={manualOpen}
+            onClose={() => setManualOpen(false)}
+          />
+        </>
+      )}
     </View>
   );
 }

@@ -225,7 +225,8 @@ export function LedgerScreen({ onOpenTx }: Props) {
           {topCats.map((c) => {
             const active = filterCat === c;
             const cat = cats.find((x) => x.key === c);
-            const label = cat?.label.split(' ')[0].toUpperCase() ?? c.toUpperCase();
+            const rawLabel = cat?.label.split(' ')[0].toUpperCase() ?? c.toUpperCase();
+            const label = rawLabel === 'INCOME' ? 'CREDIT' : rawLabel;
             return (
               <Pressable
                 key={c}

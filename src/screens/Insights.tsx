@@ -4,8 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { T, Tag } from '../components/Text';
 import { CategoryGlyph } from '../components/CategoryGlyph';
 import { RangeChips } from '../components/RangeChips';
-import { MiniBars, type Bucket } from '../components/MiniBars';
 import { LabeledRule } from '../components/LabeledRule';
+import type { Bucket } from '../components/MiniBars';
 import { C, F } from '../lib/tokens';
 import { formatAmount } from '../lib/format';
 import { getCategory } from '../lib/categories';
@@ -186,7 +186,6 @@ export function InsightsScreen({ onOpenCategory, onOpenMerchant }: Props) {
 
   const [range, setRange] = useState<RangeKey>('M');
   const [{ start: cStart, end: cEnd }, setCustom] = useState(defaultCustomRange);
-  const [selBar, setSelBar] = useState<number | null>(null);
 
   const window = useMemo<Window>(() => {
     if (range === '15D') return buildLast15Days(txs);
@@ -198,7 +197,6 @@ export function InsightsScreen({ onOpenCategory, onOpenMerchant }: Props) {
 
   const { start, end, label, buckets, bucketFmt } = window;
   const total = buckets.reduce((s, b) => s + b.total, 0);
-  const max = Math.max(1, ...buckets.map((b) => b.total));
   const activeBuckets = buckets.filter((b) => b.total > 0).length;
   const avg = activeBuckets > 0 ? total / activeBuckets : 0;
 
@@ -268,7 +266,6 @@ export function InsightsScreen({ onOpenCategory, onOpenMerchant }: Props) {
           value={range}
           onChange={(v) => {
             setRange(v as RangeKey);
-            setSelBar(null);
           }}
           options={['W', '15D', 'M', 'Y', 'C']}
         />
@@ -288,49 +285,6 @@ export function InsightsScreen({ onOpenCategory, onOpenMerchant }: Props) {
         ) : null}
       </View>
 
-      <View style={{ marginTop: 22 }}>
-        <View
-          style={{
-            paddingHorizontal: 20,
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            marginBottom: 10,
-          }}>
-          <Tag>DISTRIBUTION</Tag>
-          {selBar !== null && buckets[selBar] ? (
-            <T mono style={{ fontSize: 10 }}>
-              {buckets[selBar].label}
-              {buckets[selBar].dateIso
-                ? ' · ' + format(parseISO(buckets[selBar].dateIso!), 'd MMM').toUpperCase()
-                : ''}{' '}
-              <T mono color={C.accent} style={{ fontSize: 10 }}>
-                {formatAmount(buckets[selBar].total)}
-              </T>
-            </T>
-          ) : null}
-        </View>
-        <MiniBars
-          days={buckets}
-          selectedIdx={selBar}
-          onSelect={setSelBar}
-          height={140}
-        />
-        <View
-          style={{
-            paddingHorizontal: 20,
-            marginTop: 10,
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-          }}>
-          <T mono color={C.text4} style={{ fontSize: 10 }}>
-            PEAK {formatAmount(max)}
-          </T>
-          <T mono color={C.text4} style={{ fontSize: 10 }}>
-            {activeBuckets}/{buckets.length} ACTIVE
-          </T>
-        </View>
-      </View>
-
       <LabeledRule
         label="BY CATEGORY"
         right={
@@ -339,74 +293,21 @@ export function InsightsScreen({ onOpenCategory, onOpenMerchant }: Props) {
           </T>
         }
       />
-      <View style={{ paddingHorizontal: 20 }}>
-        {catSorted.map((c, i) => {
-          const amt = catTotals[c];
-          const pct = (amt / catSum) * 100;
-          const cat = getCategory(c, customs);
-          const catTxs = filtered.filter((t) => t.category === c);
-          const txCount = catTxs.length;
-          const isLast = i === catSorted.length - 1;
-          return (
-            <Pressable
-              key={c}
-              onPress={() => onOpenCategory(c, catTxs)}
-              style={{
-                paddingBottom: 14,
-                marginBottom: 14,
-                borderBottomWidth: isLast ? 0 : 1,
-                borderBottomColor: C.border,
-              }}>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 10,
-                  marginBottom: 8,
-                }}>
-                <CategoryGlyph category={c} size={28} customs={customs} />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <T style={{ fontSize: 13, color: C.text }}>{cat.label}</T>
-                  <T mono color={C.text3} style={{ fontSize: 10, marginTop: 2 }}>
-                    {txCount} TXNS · {pct.toFixed(1)}%
-                  </T>
-                </View>
-                <T mono style={{ fontSize: 14, color: C.text }}>
-                  {formatAmount(amt)}
-                </T>
-              </View>
-              <View
-                style={{
-                  height: 2,
-                  backgroundColor: C.border,
-                  borderRadius: 1,
-                  overflow: 'hidden',
-                }}>
-                <View
-                  style={{
-                    height: '100%',
-                    width: `${Math.min(100, pct)}%`,
-                    backgroundColor: i === 0 ? C.accent : C.text2,
-                  }}
-                />
-              </View>
-            </Pressable>
-          );
-        })}
-        {catSorted.length === 0 ? (
-          <T
-            mono
-            color={C.text3}
-            style={{
-              fontSize: 11,
-              letterSpacing: 1,
-              paddingVertical: 20,
-              textAlign: 'center',
-            }}>
-            NO DATA IN RANGE
-          </T>
-        ) : null}
-      </View>
+
+      {catSorted.length === 0 ? (
+        <T mono color={C.text3} style={{ fontSize: 11, letterSpacing: 1, paddingVertical: 20, textAlign: 'center' }}>
+          NO DATA IN RANGE
+        </T>
+      ) : (
+        <CategoryBars
+          catSorted={catSorted}
+          catTotals={catTotals}
+          catSum={catSum}
+          filtered={filtered}
+          customs={customs}
+          onOpenCategory={onOpenCategory}
+        />
+      )}
 
       <LabeledRule
         label="BY MERCHANT"
@@ -471,6 +372,78 @@ export function InsightsScreen({ onOpenCategory, onOpenMerchant }: Props) {
   );
 }
 
+type CategoryBarsProps = {
+  catSorted: string[];
+  catTotals: Record<string, number>;
+  catSum: number;
+  filtered: Transaction[];
+  customs: import('../lib/categories').Category[];
+  onOpenCategory: (category: string, txs: Transaction[]) => void;
+};
+
+const BAR_HEIGHT = 160;
+
+function CategoryBars({ catSorted, catTotals, catSum, filtered, customs, onOpenCategory }: CategoryBarsProps) {
+  const maxAmt = catTotals[catSorted[0]] ?? 1;
+
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 4, gap: 6 }}>
+      {catSorted.map((c, i) => {
+        const amt = catTotals[c];
+        const pct = (amt / catSum) * 100;
+        const barH = Math.max(4, (amt / maxAmt) * BAR_HEIGHT);
+        const cat = getCategory(c, customs);
+        const catTxs = filtered.filter((t) => t.category === c);
+        const isTop = i === 0;
+        return (
+          <Pressable
+            key={c}
+            onPress={() => onOpenCategory(c, catTxs)}
+            style={styles.barCol}>
+            {/* amount label above bar */}
+            <T
+              mono
+              style={{
+                fontSize: 9,
+                color: isTop ? C.accent : C.text3,
+                textAlign: 'center',
+                marginBottom: 4,
+                letterSpacing: 0.3,
+              }}
+              numberOfLines={1}>
+              {formatAmount(amt)}
+            </T>
+            {/* bar */}
+            <View style={[styles.barTrack, { height: BAR_HEIGHT }]}>
+              <View
+                style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  height: barH,
+                  backgroundColor: isTop ? C.accent : C.text4,
+                  borderRadius: 2,
+                }}
+              />
+            </View>
+            {/* name */}
+            <T
+              mono
+              style={{ fontSize: 9, textAlign: 'center', marginTop: 6, color: isTop ? C.text : C.text3, letterSpacing: 0.3 }}
+              numberOfLines={2}>
+              {cat.label.toUpperCase()}
+            </T>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
 function DateInput({
   label,
   value,
@@ -517,5 +490,13 @@ const styles = StyleSheet.create({
     fontFamily: F.mono,
     fontSize: 11,
     padding: 0,
+  },
+  barCol: {
+    width: 52,
+    alignItems: 'center',
+  },
+  barTrack: {
+    width: '100%',
+    position: 'relative',
   },
 });

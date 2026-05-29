@@ -9,7 +9,7 @@ export type Tab = 'home' | 'txns' | 'stats' | 'settings';
 type Item = { id: Tab | 'add'; icon: IconName; label: string; primary?: boolean };
 
 const ITEMS: Item[] = [
-  { id: 'home', icon: 'home', label: 'TODAY' },
+  { id: 'home', icon: 'home', label: 'HOME' },
   { id: 'txns', icon: 'list', label: 'LEDGER' },
   { id: 'add', icon: 'plus', label: '', primary: true },
   { id: 'stats', icon: 'chart', label: 'INSIGHTS' },
