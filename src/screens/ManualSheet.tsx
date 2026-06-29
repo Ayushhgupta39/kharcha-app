@@ -19,7 +19,10 @@ import { Button } from '../components/Button';
 import { C, F } from '../lib/tokens';
 import { useCategories } from '../store/categories';
 import { useTransactions } from '../store/transactions';
+import { useAccounts } from '../store/accounts';
+import { useSettings } from '../store/settings';
 import { BUILTIN_INCOME_CATEGORIES } from '../lib/categories';
+import type { TxKind } from '../db/transactions';
 
 const GLYPH_OPTIONS = ['◉', '◎', '◇', '◈', '▽', '▷', '◁', '△', '⬡', '⬢', '✦', '✧', '⊕', '⊗', '⊘'];
 
@@ -34,6 +37,8 @@ export function ManualSheet({ visible, onClose }: Props) {
   const customs = useCategories((s) => s.customs);
   const addCategory = useCategories((s) => s.add);
   const add = useTransactions((s) => s.add);
+  const accounts = useAccounts((s) => s.accounts);
+  const defaultAccountId = useSettings((s) => s.defaultAccountId);
 
   const [newCatOpen, setNewCatOpen] = useState(false);
   const [newCatLabel, setNewCatLabel] = useState('');
@@ -41,17 +46,22 @@ export function ManualSheet({ visible, onClose }: Props) {
 
   const today = new Date();
 
-  const [txType, setTxType] = useState<'debit' | 'credit'>('debit');
+  const [kind, setKind] = useState<TxKind>('expense');
   const [amount, setAmount] = useState('');
   const [merchant, setMerchant] = useState('');
   const [category, setCategory] = useState<string>('food');
+  const [accountId, setAccountId] = useState<string | null>(defaultAccountId);
 
   const [note, setNote] = useState('');
 
+  const txType: 'debit' | 'credit' = kind === 'income' ? 'credit' : 'debit';
+  const isSpecial = kind === 'invest' || kind === 'lent';
+
   const incomeCatKeys = new Set(BUILTIN_INCOME_CATEGORIES.map((c) => c.key));
-  const cats = txType === 'credit'
-    ? [...BUILTIN_INCOME_CATEGORIES, ...customs]
-    : allCats.filter((c) => !incomeCatKeys.has(c.key));
+  const cats =
+    kind === 'income'
+      ? [...BUILTIN_INCOME_CATEGORIES, ...customs]
+      : allCats.filter((c) => !incomeCatKeys.has(c.key));
   const [date, setDate] = useState<Date>(today);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [calYear, setCalYear] = useState(today.getFullYear());
@@ -61,10 +71,11 @@ export function ManualSheet({ visible, onClose }: Props) {
   const valid = amount && amountNum > 0 && merchant.trim().length > 0;
 
   const reset = () => {
-    setTxType('debit');
+    setKind('expense');
     setAmount('');
     setMerchant('');
     setCategory('food');
+    setAccountId(defaultAccountId);
     setNote('');
     setDate(today);
     setShowDatePicker(false);
@@ -76,7 +87,10 @@ export function ManualSheet({ visible, onClose }: Props) {
   const saveNewCategory = async () => {
     const label = newCatLabel.trim();
     if (!label) return;
-    const key = label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const key = label
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_]/g, '');
     if (!key) {
       Alert.alert('Invalid name', 'Use letters or numbers.');
       return;
@@ -100,12 +114,14 @@ export function ManualSheet({ visible, onClose }: Props) {
     await add({
       amount: Math.round(amountNum * 100),
       type: txType,
+      kind,
       merchant: merchant.trim(),
-      category,
+      category: isSpecial ? kind : category,
       date: d.toISOString(),
       source: 'manual',
       note: note.trim() || null,
       bank: null,
+      account_id: accountId,
       raw_sms: null,
     });
     reset();
@@ -117,9 +133,7 @@ export function ManualSheet({ visible, onClose }: Props) {
     date.getMonth() === today.getMonth() &&
     date.getFullYear() === today.getFullYear();
 
-  const dateLabel = isToday
-    ? 'TODAY'
-    : format(date, 'd MMM yyyy').toUpperCase();
+  const dateLabel = isToday ? 'TODAY' : format(date, 'd MMM yyyy').toUpperCase();
 
   return (
     <Modal
@@ -129,270 +143,347 @@ export function ManualSheet({ visible, onClose }: Props) {
       onRequestClose={onClose}
       statusBarTranslucent>
       <View style={styles.backdrop}>
-        <Pressable
-          style={{ height: 60 + insets.top }}
-          onPress={onClose}
-        />
+        <Pressable style={{ height: 60 + insets.top }} onPress={onClose} />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}>
-        <View style={[styles.panel, { paddingBottom: insets.bottom }]}>
-          <View style={styles.header}>
-            <T mono weight="600" style={{ fontSize: 11, letterSpacing: 1.4 }}>
-              NEW ENTRY
-            </T>
-            <Pressable onPress={onClose}>
-              <Icon name="x" size={18} color={C.text2} />
-            </Pressable>
-          </View>
-
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{
-              paddingHorizontal: 20,
-              paddingTop: 24,
-              paddingBottom: 20,
-            }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}>
-            <View style={styles.typeToggle}>
-              {(['debit', 'credit'] as const).map((t) => {
-                const active = txType === t;
-                return (
-                  <Pressable
-                    key={t}
-                    onPress={() => {
-                      setTxType(t);
-                      setCategory(t === 'credit' ? 'salary' : 'food');
-                    }}
-                    style={[
-                      styles.typeBtn,
-                      {
-                        backgroundColor: active
-                          ? t === 'credit' ? 'rgba(52,199,89,0.12)' : C.surface2
-                          : 'transparent',
-                        borderColor: active
-                          ? t === 'credit' ? '#34C759' : C.border2
-                          : C.border,
-                      },
-                    ]}>
-                    <T
-                      mono
-                      weight="600"
-                      style={{
-                        fontSize: 11,
-                        letterSpacing: 1,
-                        color: active
-                          ? t === 'credit' ? '#34C759' : C.text
-                          : C.text3,
-                      }}>
-                      {t === 'debit' ? '− EXPENSE' : '+ INCOME'}
-                    </T>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            <Tag style={{ marginBottom: 10, marginTop: 22 }}>AMOUNT</Tag>
-            <View style={styles.amountRow}>
-              <T
-                mono
-                color={amount ? C.text3 : C.text4}
-                style={{ fontSize: 32 }}>
-                ₹
+          <View style={[styles.panel, { paddingBottom: insets.bottom }]}>
+            <View style={styles.header}>
+              <T mono weight="600" style={{ fontSize: 11, letterSpacing: 1.4 }}>
+                NEW ENTRY
               </T>
-              <TextInput
-                value={amount}
-                onChangeText={setAmount}
-                placeholder="0"
-                placeholderTextColor={C.text4}
-                keyboardType="decimal-pad"
-                autoFocus
-                selectionColor={C.accent}
-                style={[
-                  styles.amountInput,
-                  { color: amount ? C.text : C.text4 },
-                ]}
-              />
-            </View>
-
-            <Tag style={{ marginBottom: 10, marginTop: 22 }}>{txType === 'credit' ? 'SOURCE' : 'MERCHANT'}</Tag>
-            <TextInput
-              value={merchant}
-              onChangeText={setMerchant}
-              placeholder={txType === 'credit' ? 'Where did you earn?' : 'Where did you spend?'}
-              placeholderTextColor={C.text3}
-              style={styles.textInput}
-              selectionColor={C.accent}
-            />
-
-            <Tag style={{ marginBottom: 10, marginTop: 22 }}>DATE</Tag>
-            <Pressable
-              onPress={() => setShowDatePicker((v) => !v)}
-              style={[
-                styles.dateRow,
-                showDatePicker && { borderColor: C.accent },
-              ]}>
-              <Icon name="calendar" size={14} color={C.text3} />
-              <T mono style={{ fontSize: 13, flex: 1 }}>
-                {dateLabel}
-              </T>
-              <Icon
-                name={showDatePicker ? 'chevron-u' : 'chevron-d'}
-                size={13}
-                color={C.text3}
-              />
-            </Pressable>
-
-            {showDatePicker && (
-              <CalendarPicker
-                year={calYear}
-                month={calMonth}
-                selected={date}
-                maxDate={today}
-                onSelect={(d) => {
-                  setDate(d);
-                  setShowDatePicker(false);
-                }}
-                onPrevMonth={() => {
-                  if (calMonth === 0) {
-                    setCalMonth(11);
-                    setCalYear((y) => y - 1);
-                  } else {
-                    setCalMonth((m) => m - 1);
-                  }
-                }}
-                onNextMonth={() => {
-                  const nextM = calMonth === 11 ? 0 : calMonth + 1;
-                  const nextY = calMonth === 11 ? calYear + 1 : calYear;
-                  // Don't go beyond current month
-                  if (
-                    nextY > today.getFullYear() ||
-                    (nextY === today.getFullYear() &&
-                      nextM > today.getMonth())
-                  )
-                    return;
-                  setCalMonth(nextM);
-                  setCalYear(nextY);
-                }}
-              />
-            )}
-
-            <Tag style={{ marginBottom: 10, marginTop: 22 }}>CATEGORY</Tag>
-            <View style={styles.catGrid}>
-              {cats.map((c) => {
-                const active = category === c.key;
-                return (
-                  <Pressable
-                    key={c.key}
-                    onPress={() => setCategory(c.key)}
-                    style={[
-                      styles.catCell,
-                      {
-                        borderColor: active ? C.accent : C.border2,
-                        backgroundColor: active ? C.accentGlow : C.surface,
-                      },
-                    ]}>
-                    <CategoryGlyph
-                      category={c.key}
-                      size={22}
-                      active={active}
-                      customs={customs}
-                    />
-                    <T style={{ fontSize: 12 }}>{c.label.split(' ')[0]}</T>
-                  </Pressable>
-                );
-              })}
-              <Pressable
-                onPress={() => setNewCatOpen((v) => !v)}
-                style={[
-                  styles.catCell,
-                  {
-                    borderColor: newCatOpen ? C.accent : C.border2,
-                    borderStyle: 'dashed',
-                    backgroundColor: C.surface,
-                  },
-                ]}>
-                <T mono color={newCatOpen ? C.accent : C.text3} style={{ fontSize: 18 }}>+</T>
-                <T style={{ fontSize: 12, color: newCatOpen ? C.accent : C.text3 }}>New</T>
+              <Pressable onPress={onClose}>
+                <Icon name="x" size={18} color={C.text2} />
               </Pressable>
             </View>
 
-            {newCatOpen && (
-              <View style={styles.newCatPanel}>
-                <Tag style={{ marginBottom: 8 }}>GLYPH</Tag>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-                  {GLYPH_OPTIONS.map((g) => (
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{
+                paddingHorizontal: 20,
+                paddingTop: 24,
+                paddingBottom: 20,
+              }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}>
+              <View style={styles.typeToggle}>
+                {[
+                  { k: 'expense' as TxKind, label: '− SPEND', accent: C.text },
+                  { k: 'income' as TxKind, label: '+ INCOME', accent: '#34C759' },
+                  { k: 'invest' as TxKind, label: '⬡ INVEST', accent: C.accent },
+                  { k: 'lent' as TxKind, label: '◇ LENT', accent: C.text2 },
+                ].map(({ k, label, accent }) => {
+                  const active = kind === k;
+                  return (
                     <Pressable
-                      key={g}
-                      onPress={() => setNewCatGlyph(g)}
+                      key={k}
+                      onPress={() => {
+                        setKind(k);
+                        if (k === 'income') setCategory('salary');
+                        else if (k === 'expense') setCategory('food');
+                      }}
                       style={[
-                        styles.glyphCell,
-                        { borderColor: newCatGlyph === g ? C.accent : C.border2,
-                          backgroundColor: newCatGlyph === g ? C.accentGlow : C.surface },
+                        styles.typeBtn,
+                        {
+                          backgroundColor: active ? C.surface2 : 'transparent',
+                          borderColor: active ? accent : C.border,
+                        },
                       ]}>
-                      <T mono style={{ fontSize: 16, color: newCatGlyph === g ? C.accent : C.text2 }}>{g}</T>
+                      <T
+                        mono
+                        weight="600"
+                        style={{
+                          fontSize: 10,
+                          letterSpacing: 0.5,
+                          color: active ? accent : C.text3,
+                        }}>
+                        {label}
+                      </T>
                     </Pressable>
-                  ))}
-                </View>
-                <Tag style={{ marginBottom: 8 }}>NAME</Tag>
+                  );
+                })}
+              </View>
+
+              <Tag style={{ marginBottom: 10, marginTop: 22 }}>AMOUNT</Tag>
+              <View style={styles.amountRow}>
+                <T mono color={amount ? C.text3 : C.text4} style={{ fontSize: 32 }}>
+                  ₹
+                </T>
                 <TextInput
-                  value={newCatLabel}
-                  onChangeText={setNewCatLabel}
-                  placeholder="e.g. Travel"
-                  placeholderTextColor={C.text3}
-                  style={[styles.textInput, { marginBottom: 12 }]}
-                  selectionColor={C.accent}
+                  value={amount}
+                  onChangeText={setAmount}
+                  placeholder="0"
+                  placeholderTextColor={C.text4}
+                  keyboardType="decimal-pad"
                   autoFocus
-                />
-                <Button
-                  label="ADD CATEGORY"
-                  onPress={saveNewCategory}
-                  disabled={!newCatLabel.trim()}
-                  style={{ opacity: newCatLabel.trim() ? 1 : 0.35 }}
+                  selectionColor={C.accent}
+                  style={[styles.amountInput, { color: amount ? C.text : C.text4 }]}
                 />
               </View>
-            )}
 
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-                marginTop: 22,
-                marginBottom: 10,
-              }}>
-              <Tag>NOTE</Tag>
-              <Tag color={C.text4}>(OPTIONAL)</Tag>
+              <Tag style={{ marginBottom: 10, marginTop: 22 }}>
+                {kind === 'income'
+                  ? 'SOURCE'
+                  : kind === 'invest'
+                    ? 'INVESTED IN'
+                    : kind === 'lent'
+                      ? 'LENT TO'
+                      : 'MERCHANT'}
+              </Tag>
+              <TextInput
+                value={merchant}
+                onChangeText={setMerchant}
+                placeholder={
+                  kind === 'income'
+                    ? 'Where did you earn?'
+                    : kind === 'invest'
+                      ? 'e.g. Mutual fund, Stocks'
+                      : kind === 'lent'
+                        ? 'Who did you lend to?'
+                        : 'Where did you spend?'
+                }
+                placeholderTextColor={C.text3}
+                style={styles.textInput}
+                selectionColor={C.accent}
+              />
+
+              <Tag style={{ marginBottom: 10, marginTop: 22 }}>DATE</Tag>
+              <Pressable
+                onPress={() => setShowDatePicker((v) => !v)}
+                style={[styles.dateRow, showDatePicker && { borderColor: C.accent }]}>
+                <Icon name="calendar" size={14} color={C.text3} />
+                <T mono style={{ fontSize: 13, flex: 1 }}>
+                  {dateLabel}
+                </T>
+                <Icon name={showDatePicker ? 'chevron-u' : 'chevron-d'} size={13} color={C.text3} />
+              </Pressable>
+
+              {showDatePicker && (
+                <CalendarPicker
+                  year={calYear}
+                  month={calMonth}
+                  selected={date}
+                  maxDate={today}
+                  onSelect={(d) => {
+                    setDate(d);
+                    setShowDatePicker(false);
+                  }}
+                  onPrevMonth={() => {
+                    if (calMonth === 0) {
+                      setCalMonth(11);
+                      setCalYear((y) => y - 1);
+                    } else {
+                      setCalMonth((m) => m - 1);
+                    }
+                  }}
+                  onNextMonth={() => {
+                    const nextM = calMonth === 11 ? 0 : calMonth + 1;
+                    const nextY = calMonth === 11 ? calYear + 1 : calYear;
+                    // Don't go beyond current month
+                    if (
+                      nextY > today.getFullYear() ||
+                      (nextY === today.getFullYear() && nextM > today.getMonth())
+                    )
+                      return;
+                    setCalMonth(nextM);
+                    setCalYear(nextY);
+                  }}
+                />
+              )}
+
+              {!isSpecial ? (
+                <>
+                  <Tag style={{ marginBottom: 10, marginTop: 22 }}>CATEGORY</Tag>
+                  <View style={styles.catGrid}>
+                    {cats.map((c) => {
+                      const active = category === c.key;
+                      return (
+                        <Pressable
+                          key={c.key}
+                          onPress={() => setCategory(c.key)}
+                          style={[
+                            styles.catCell,
+                            {
+                              borderColor: active ? C.accent : C.border2,
+                              backgroundColor: active ? C.accentGlow : C.surface,
+                            },
+                          ]}>
+                          <CategoryGlyph
+                            category={c.key}
+                            size={22}
+                            active={active}
+                            customs={customs}
+                          />
+                          <T style={{ fontSize: 12 }}>{c.label.split(' ')[0]}</T>
+                        </Pressable>
+                      );
+                    })}
+                    <Pressable
+                      onPress={() => setNewCatOpen((v) => !v)}
+                      style={[
+                        styles.catCell,
+                        {
+                          borderColor: newCatOpen ? C.accent : C.border2,
+                          borderStyle: 'dashed',
+                          backgroundColor: C.surface,
+                        },
+                      ]}>
+                      <T mono color={newCatOpen ? C.accent : C.text3} style={{ fontSize: 18 }}>
+                        +
+                      </T>
+                      <T style={{ fontSize: 12, color: newCatOpen ? C.accent : C.text3 }}>New</T>
+                    </Pressable>
+                  </View>
+
+                  {newCatOpen && (
+                    <View style={styles.newCatPanel}>
+                      <Tag style={{ marginBottom: 8 }}>GLYPH</Tag>
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          flexWrap: 'wrap',
+                          gap: 6,
+                          marginBottom: 12,
+                        }}>
+                        {GLYPH_OPTIONS.map((g) => (
+                          <Pressable
+                            key={g}
+                            onPress={() => setNewCatGlyph(g)}
+                            style={[
+                              styles.glyphCell,
+                              {
+                                borderColor: newCatGlyph === g ? C.accent : C.border2,
+                                backgroundColor: newCatGlyph === g ? C.accentGlow : C.surface,
+                              },
+                            ]}>
+                            <T
+                              mono
+                              style={{
+                                fontSize: 16,
+                                color: newCatGlyph === g ? C.accent : C.text2,
+                              }}>
+                              {g}
+                            </T>
+                          </Pressable>
+                        ))}
+                      </View>
+                      <Tag style={{ marginBottom: 8 }}>NAME</Tag>
+                      <TextInput
+                        value={newCatLabel}
+                        onChangeText={setNewCatLabel}
+                        placeholder="e.g. Travel"
+                        placeholderTextColor={C.text3}
+                        style={[styles.textInput, { marginBottom: 12 }]}
+                        selectionColor={C.accent}
+                        autoFocus
+                      />
+                      <Button
+                        label="ADD CATEGORY"
+                        onPress={saveNewCategory}
+                        disabled={!newCatLabel.trim()}
+                        style={{ opacity: newCatLabel.trim() ? 1 : 0.35 }}
+                      />
+                    </View>
+                  )}
+                </>
+              ) : null}
+
+              {accounts.length > 0 ? (
+                <>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6,
+                      marginTop: 22,
+                      marginBottom: 10,
+                    }}>
+                    <Tag>ACCOUNT</Tag>
+                    <Tag color={C.text4}>(OPTIONAL)</Tag>
+                  </View>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                    <Pressable
+                      onPress={() => setAccountId(null)}
+                      style={[
+                        styles.acctChip,
+                        {
+                          borderColor: accountId === null ? C.accent : C.border2,
+                          backgroundColor: accountId === null ? C.accentGlow : C.surface,
+                        },
+                      ]}>
+                      <T style={{ fontSize: 12, color: accountId === null ? C.accent : C.text2 }}>
+                        None
+                      </T>
+                    </Pressable>
+                    {accounts.map((a) => {
+                      const active = accountId === a.id;
+                      return (
+                        <Pressable
+                          key={a.id}
+                          onPress={() => setAccountId(a.id)}
+                          style={[
+                            styles.acctChip,
+                            {
+                              borderColor: active ? C.accent : C.border2,
+                              backgroundColor: active ? C.accentGlow : C.surface,
+                            },
+                          ]}>
+                          <Icon
+                            name={a.type === 'card' ? 'card' : 'bank'}
+                            size={13}
+                            color={active ? C.accent : C.text3}
+                          />
+                          <T
+                            style={{ fontSize: 12, color: active ? C.accent : C.text2 }}
+                            numberOfLines={1}>
+                            {a.name}
+                          </T>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              ) : null}
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginTop: 22,
+                  marginBottom: 10,
+                }}>
+                <Tag>NOTE</Tag>
+                <Tag color={C.text4}>(OPTIONAL)</Tag>
+              </View>
+              <TextInput
+                value={note}
+                onChangeText={setNote}
+                placeholder="e.g. Dinner with team"
+                placeholderTextColor={C.text3}
+                style={styles.textInput}
+                selectionColor={C.accent}
+              />
+            </ScrollView>
+
+            <View style={styles.actionBar}>
+              <Button
+                label="CANCEL"
+                variant="ghost"
+                onPress={() => {
+                  reset();
+                  onClose();
+                }}
+                style={{ flex: 1 }}
+              />
+              <Button
+                label="SAVE ENTRY"
+                onPress={save}
+                disabled={!valid}
+                style={{ flex: 2, opacity: valid ? 1 : 0.35 }}
+              />
             </View>
-            <TextInput
-              value={note}
-              onChangeText={setNote}
-              placeholder="e.g. Dinner with team"
-              placeholderTextColor={C.text3}
-              style={styles.textInput}
-              selectionColor={C.accent}
-            />
-          </ScrollView>
-
-          <View style={styles.actionBar}>
-            <Button
-              label="CANCEL"
-              variant="ghost"
-              onPress={() => {
-                reset();
-                onClose();
-              }}
-              style={{ flex: 1 }}
-            />
-            <Button
-              label="SAVE ENTRY"
-              onPress={save}
-              disabled={!valid}
-              style={{ flex: 2, opacity: valid ? 1 : 0.35 }}
-            />
           </View>
-        </View>
         </KeyboardAvoidingView>
       </View>
     </Modal>
@@ -423,8 +514,7 @@ function CalendarPicker({
   const daysInM = getDaysInMonth(firstOfMonth);
 
   const atMaxMonth =
-    year > maxDate.getFullYear() ||
-    (year === maxDate.getFullYear() && month >= maxDate.getMonth());
+    year > maxDate.getFullYear() || (year === maxDate.getFullYear() && month >= maxDate.getMonth());
 
   const slots: (number | null)[] = [];
   for (let i = 0; i < startDow; i++) slots.push(null);
@@ -443,9 +533,7 @@ function CalendarPicker({
         <T mono weight="600" style={{ fontSize: 11, letterSpacing: 1.3 }}>
           {format(new Date(year, month, 1), 'MMM yyyy').toUpperCase()}
         </T>
-        <Pressable
-          onPress={onNextMonth}
-          style={[styles.calNavBtn, atMaxMonth && { opacity: 0.2 }]}>
+        <Pressable onPress={onNextMonth} style={[styles.calNavBtn, atMaxMonth && { opacity: 0.2 }]}>
           <Icon name="chevron-r" size={14} color={C.text2} />
         </Pressable>
       </View>
@@ -588,6 +676,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderWidth: 1,
     borderRadius: 2,
+  },
+  acctChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderWidth: 1,
+    borderRadius: 2,
+    maxWidth: '100%',
   },
   newCatPanel: {
     marginTop: 10,

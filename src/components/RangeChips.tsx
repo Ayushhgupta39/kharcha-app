@@ -8,11 +8,7 @@ type Props = {
   options?: string[];
 };
 
-export function RangeChips({
-  value,
-  onChange,
-  options = ['W', '15D', 'M', 'Y'],
-}: Props) {
+export function RangeChips({ value, onChange, options = ['W', '15D', 'M', 'Y'] }: Props) {
   return (
     <View style={styles.group}>
       {options.map((o, i) => {

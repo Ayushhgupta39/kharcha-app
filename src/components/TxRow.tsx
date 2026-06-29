@@ -21,24 +21,17 @@ export function TxRow({ tx, onPress, customs = [] }: Props) {
       onPress={onPress}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
-       style={{
+      style={{
         ...styles.row,
         ...(pressed ? { backgroundColor: C.surface2 } : {}),
       }}>
       <CategoryGlyph category={tx.category} size={38} customs={customs} />
       <View style={styles.middle}>
-        <T
-          variant="body"
-          weight="500"
-          numberOfLines={1}
-          style={{ fontSize: 14 }}>
+        <T variant="body" weight="500" numberOfLines={1} style={{ fontSize: 14 }}>
           {tx.merchant}
         </T>
         {tx.note ? (
-          <T
-            color={C.text3}
-            numberOfLines={1}
-            style={{ fontSize: 12, marginTop: 1 }}>
+          <T color={C.text3} numberOfLines={1} style={{ fontSize: 12, marginTop: 1 }}>
             {tx.note}
           </T>
         ) : null}
@@ -70,7 +63,8 @@ export function TxRow({ tx, onPress, customs = [] }: Props) {
           color: tx.type === 'credit' ? '#34C759' : C.text,
           fontVariant: ['tabular-nums'],
         }}>
-        {tx.type === 'credit' ? '+' : ''}{formatAmount(tx.amount)}
+        {tx.type === 'credit' ? '+' : ''}
+        {formatAmount(tx.amount)}
       </T>
     </Pressable>
   );

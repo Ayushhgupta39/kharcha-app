@@ -4,7 +4,7 @@ import { T } from './Text';
 import { Icon, type IconName } from './Icon';
 import { C, F } from '../lib/tokens';
 
-export type Tab = 'home' | 'txns' | 'stats' | 'settings';
+export type Tab = 'home' | 'txns' | 'stats' | 'portfolio';
 
 type Item = { id: Tab | 'add'; icon: IconName; label: string; primary?: boolean };
 
@@ -13,7 +13,7 @@ const ITEMS: Item[] = [
   { id: 'txns', icon: 'list', label: 'LEDGER' },
   { id: 'add', icon: 'plus', label: '', primary: true },
   { id: 'stats', icon: 'chart', label: 'INSIGHTS' },
-  { id: 'settings', icon: 'settings', label: 'MORE' },
+  { id: 'portfolio', icon: 'wallet', label: 'WALLET' },
 ];
 
 type Props = {
@@ -25,19 +25,11 @@ type Props = {
 export function BottomNav({ active, onTab, onAdd }: Props) {
   const insets = useSafeAreaInsets();
   return (
-    <View
-      style={[
-        styles.bar,
-        { paddingBottom: Math.max(insets.bottom, 20) },
-      ]}>
+    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 20) }]}>
       {ITEMS.map((it) => {
         if (it.primary) {
           return (
-            <Pressable
-              key={it.id}
-              onPress={onAdd}
-              style={styles.flex1}
-              android_ripple={null}>
+            <Pressable key={it.id} onPress={onAdd} style={styles.flex1} android_ripple={null}>
               <View style={styles.primary}>
                 <Icon name="plus" size={22} color="#0A0A0A" strokeWidth={2.2} />
               </View>
@@ -52,12 +44,7 @@ export function BottomNav({ active, onTab, onAdd }: Props) {
             style={styles.tabBtn}
             android_ripple={null}>
             {isActive && <View style={styles.activeBar} />}
-            <Icon
-              name={it.icon}
-              size={20}
-              color={isActive ? C.text : C.text3}
-              strokeWidth={1.8}
-            />
+            <Icon name={it.icon} size={20} color={isActive ? C.text : C.text3} strokeWidth={1.8} />
             <T
               mono
               weight="500"

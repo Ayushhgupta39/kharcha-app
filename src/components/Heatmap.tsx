@@ -17,14 +17,7 @@ const GAP = 3;
 const H_PAD = 20;
 const COLS = 7;
 
-export function HeatmapMonth({
-  month,
-  year,
-  todayDay,
-  txs,
-  selectedDay,
-  onSelectDay,
-}: Props) {
+export function HeatmapMonth({ month, year, todayDay, txs, selectedDay, onSelectDay }: Props) {
   const [gridWidth, setGridWidth] = useState(0);
 
   const onGridLayout = (e: LayoutChangeEvent) => {
@@ -32,9 +25,7 @@ export function HeatmapMonth({
     if (w !== gridWidth) setGridWidth(w);
   };
 
-  const cellSize = gridWidth > 0
-    ? Math.floor((gridWidth - GAP * (COLS - 1)) / COLS)
-    : 0;
+  const cellSize = gridWidth > 0 ? Math.floor((gridWidth - GAP * (COLS - 1)) / COLS) : 0;
 
   const totals: Record<number, number> = {};
   for (const t of txs) {
@@ -60,7 +51,7 @@ export function HeatmapMonth({
   while (slots.length % COLS !== 0) slots.push({ empty: true });
 
   // Split into rows
-  const rows: typeof slots[] = [];
+  const rows: (typeof slots)[] = [];
   for (let i = 0; i < slots.length; i += COLS) rows.push(slots.slice(i, i + COLS));
 
   const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -113,9 +104,7 @@ export function HeatmapMonth({
                 color = '#0A0A0A';
               } else if (isToday) {
                 // Today unselected: accent border, heat bg
-                const heat = slot.intensity > 0
-                  ? Math.round(18 + slot.intensity * 38)
-                  : 14;
+                const heat = slot.intensity > 0 ? Math.round(18 + slot.intensity * 38) : 14;
                 bg = `rgb(${heat},${heat},${heat})`;
                 border = C.accent;
                 color = C.text;
@@ -163,7 +152,16 @@ type CellProps = {
   onPress: () => void;
 };
 
-function HeatCell({ day, size, bg, borderColor, textColor, bold, marginRight, onPress }: CellProps) {
+function HeatCell({
+  day,
+  size,
+  bg,
+  borderColor,
+  textColor,
+  bold,
+  marginRight,
+  onPress,
+}: CellProps) {
   const [pressed, setPressed] = useState(false);
   if (!size) return null;
   return (
@@ -185,10 +183,7 @@ function HeatCell({ day, size, bg, borderColor, textColor, bold, marginRight, on
         marginRight,
         opacity: pressed ? 0.65 : 1,
       }}>
-      <T
-        mono
-        weight={bold ? '700' : '400'}
-        style={{ fontSize: 11, color: textColor }}>
+      <T mono weight={bold ? '700' : '400'} style={{ fontSize: 11, color: textColor }}>
         {day}
       </T>
     </Pressable>

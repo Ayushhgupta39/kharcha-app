@@ -6,7 +6,7 @@ export const MERCHANT_CATEGORY_MAP: Record<string, string> = {
   SWIGGY: 'food',
   ZOMATO: 'food',
   EATSURE: 'food',
-  'DOMINOS': 'food',
+  DOMINOS: 'food',
   MCDONALDS: 'food',
   KFC: 'food',
   BURGERKING: 'food',

@@ -15,7 +15,19 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
   // Idempotent column additions — ignore if already exists
   try {
     await db.execAsync(`ALTER TABLE transactions ADD COLUMN type TEXT NOT NULL DEFAULT 'debit'`);
-  } catch { /* column already exists */ }
+  } catch {
+    /* column already exists */
+  }
+  try {
+    await db.execAsync(`ALTER TABLE transactions ADD COLUMN kind TEXT NOT NULL DEFAULT 'expense'`);
+  } catch {
+    /* column already exists */
+  }
+  try {
+    await db.execAsync(`ALTER TABLE transactions ADD COLUMN account_id TEXT`);
+  } catch {
+    /* column already exists */
+  }
 
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
@@ -39,6 +51,7 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(date);
     CREATE INDEX IF NOT EXISTS idx_tx_category ON transactions(category);
     CREATE INDEX IF NOT EXISTS idx_tx_merchant ON transactions(merchant);
+    CREATE INDEX IF NOT EXISTS idx_tx_account ON transactions(account_id);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_tx_sms_hash ON transactions(sms_hash) WHERE sms_hash IS NOT NULL;
 
     CREATE TABLE IF NOT EXISTS pending_sms (
@@ -85,7 +98,25 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS accounts (
+      id            TEXT PRIMARY KEY,
+      name          TEXT NOT NULL,
+      type          TEXT NOT NULL DEFAULT 'bank',
+      account_no    TEXT,
+      notes         TEXT,
+      created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
+
+  // Backfill kind for rows that predate the column (idempotent).
+  try {
+    await db.execAsync(
+      `UPDATE transactions SET kind = 'income' WHERE type = 'credit' AND kind = 'expense'`
+    );
+  } catch {
+    /* no-op */
+  }
 }
 
 export async function resetDb(): Promise<void> {
@@ -97,5 +128,6 @@ export async function resetDb(): Promise<void> {
     DELETE FROM budgets;
     DELETE FROM merchant_map;
     DELETE FROM settings;
+    DELETE FROM accounts;
   `);
 }

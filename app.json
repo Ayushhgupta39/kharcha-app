@@ -13,9 +13,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#0A0A0A"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.kharcha.app",
@@ -29,20 +27,14 @@
         "foregroundImage": "./assets/app-icon.png",
         "backgroundColor": "#0A0A0A"
       },
-      "permissions": [
-        "android.permission.READ_SMS",
-        "android.permission.RECEIVE_SMS"
-      ],
+      "permissions": ["android.permission.READ_SMS", "android.permission.RECEIVE_SMS"],
       "privacyUrl": "https://ayushhgupta39.github.io/kharcha-privacy-policy/"
     },
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
-    "plugins": [
-      "expo-sqlite",
-      "expo-font"
-    ],
+    "plugins": ["expo-sqlite", "expo-font"],
     "experiments": {
       "tsconfigPaths": true
     },

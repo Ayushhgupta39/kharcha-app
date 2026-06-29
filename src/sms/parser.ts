@@ -2,11 +2,11 @@ import { getTransactionInfo } from 'transaction-sms-parser';
 import { lookupMerchantCategory } from './merchantMap';
 
 export type ParsedSms = {
-  amount: number;   // paise
+  amount: number; // paise
   merchant: string;
   bank: string | null;
   category: string;
-  date: string;     // ISO
+  date: string; // ISO
   raw: string;
   hash: string;
   kind: 'debit' | 'credit';
@@ -16,44 +16,73 @@ type TraiSuffix = 'T' | 'S' | 'P' | 'G' | null;
 
 const ENTITY_MAP: Record<string, string> = {
   // Public sector banks
-  SBIINB: 'SBI', SBIBNK: 'SBI', SBIUPI: 'SBI', SBI: 'SBI',
-  PNBSMS: 'PNB', PNB: 'PNB',
-  BOBSMS: 'BOB', BOB: 'BOB',
-  BOISMS: 'BOI', BOI: 'BOI',
-  CANBNK: 'CANARA', CANARA: 'CANARA',
-  UNIONB: 'UNION', UNION: 'UNION',
-  CENTBK: 'CENTRAL', CENTRAL: 'CENTRAL',
-  UCOBK: 'UCO', UCO: 'UCO',
-  IOBSMS: 'IOB', IOB: 'IOB',
+  SBIINB: 'SBI',
+  SBIBNK: 'SBI',
+  SBIUPI: 'SBI',
+  SBI: 'SBI',
+  PNBSMS: 'PNB',
+  PNB: 'PNB',
+  BOBSMS: 'BOB',
+  BOB: 'BOB',
+  BOISMS: 'BOI',
+  BOI: 'BOI',
+  CANBNK: 'CANARA',
+  CANARA: 'CANARA',
+  UNIONB: 'UNION',
+  UNION: 'UNION',
+  CENTBK: 'CENTRAL',
+  CENTRAL: 'CENTRAL',
+  UCOBK: 'UCO',
+  UCO: 'UCO',
+  IOBSMS: 'IOB',
+  IOB: 'IOB',
   // Private banks
-  HDFCBK: 'HDFC', HDFC: 'HDFC',
-  ICICIB: 'ICICI', ICICI: 'ICICI',
-  AXISBK: 'AXIS', AXIS: 'AXIS',
-  KOTAKB: 'KOTAK', KOTAK: 'KOTAK',
-  YESBK: 'YES', YESBNK: 'YES', YES: 'YES',
-  IDFCBK: 'IDFC', IDFC: 'IDFC',
-  RBLBNK: 'RBL', RBL: 'RBL',
+  HDFCBK: 'HDFC',
+  HDFC: 'HDFC',
+  ICICIB: 'ICICI',
+  ICICI: 'ICICI',
+  AXISBK: 'AXIS',
+  AXIS: 'AXIS',
+  KOTAKB: 'KOTAK',
+  KOTAK: 'KOTAK',
+  YESBK: 'YES',
+  YESBNK: 'YES',
+  YES: 'YES',
+  IDFCBK: 'IDFC',
+  IDFC: 'IDFC',
+  RBLBNK: 'RBL',
+  RBL: 'RBL',
   FEDERAL: 'FEDERAL',
-  INDBNK: 'INDUSIND', INDUSIND: 'INDUSIND',
-  SCBANK: 'SCAPIA', SCAPIA: 'SCAPIA',
-  BANDHN: 'BANDHAN', BANDHAN: 'BANDHAN',
-  AUSFIN: 'AU', AU: 'AU',
+  INDBNK: 'INDUSIND',
+  INDUSIND: 'INDUSIND',
+  SCBANK: 'SCAPIA',
+  SCAPIA: 'SCAPIA',
+  BANDHN: 'BANDHAN',
+  BANDHAN: 'BANDHAN',
+  AUSFIN: 'AU',
+  AU: 'AU',
   // Neo-banks / fintech
-  SLICEIT: 'SLICE', SLCEIT: 'SLICE', SLICE: 'SLICE',
-  ONECRD: 'ONECARD', ONECARD: 'ONECARD',
+  SLICEIT: 'SLICE',
+  SLCEIT: 'SLICE',
+  SLICE: 'SLICE',
+  ONECRD: 'ONECARD',
+  ONECARD: 'ONECARD',
   NIYO: 'NIYO',
   // UPI / wallets
-  PAYTMB: 'PAYTM', PAYTM: 'PAYTM',
-  PHNPAY: 'PHONEPE', PHONEPE: 'PHONEPE',
+  PAYTMB: 'PAYTM',
+  PAYTM: 'PAYTM',
+  PHNPAY: 'PHONEPE',
+  PHONEPE: 'PHONEPE',
   GPAY: 'GPAY',
-  AIRTLM: 'AIRTEL', AIRTEL: 'AIRTEL',
+  AIRTLM: 'AIRTEL',
+  AIRTEL: 'AIRTEL',
 };
 
 const ENTITY_KEYS = Object.keys(ENTITY_MAP).sort((a, b) => b.length - a.length);
 
 type SenderInfo = {
   suffix: TraiSuffix;
-  bank: string | null;   // resolved display name, e.g. "HDFC"
+  bank: string | null; // resolved display name, e.g. "HDFC"
   isFinancial: boolean;
 };
 
@@ -68,9 +97,7 @@ function parseSender(address: string | null | undefined): SenderInfo {
   const segments = up.split('-');
   const lastSeg = segments[segments.length - 1];
   const suffix: TraiSuffix =
-    lastSeg.length === 1 && /^[TSPG]$/.test(lastSeg)
-      ? (lastSeg as TraiSuffix)
-      : null;
+    lastSeg.length === 1 && /^[TSPG]$/.test(lastSeg) ? (lastSeg as TraiSuffix) : null;
 
   let bank: string | null = null;
   for (const key of ENTITY_KEYS) {
@@ -130,7 +157,7 @@ const DEVANAGARI_RE = /[ऀ-ॿ]/;
 function isMostlyDevanagari(body: string): boolean {
   const letters = body.match(/[A-Za-zऀ-ॿ]/g);
   if (!letters || letters.length === 0) return false;
-  const dev = letters.filter(c => DEVANAGARI_RE.test(c)).length;
+  const dev = letters.filter((c) => DEVANAGARI_RE.test(c)).length;
   return dev / letters.length > 0.3;
 }
 
@@ -138,10 +165,10 @@ function isMostlyDevanagari(body: string): boolean {
 // If none are present AND no explicit debit/credit verb was found, the SMS is
 // probably a notice/promo that just happens to mention an amount.
 const TXN_STRUCTURE_RE = [
-  /\bA\/?[Cc]\b/,                       // A/c, A/C, AC
+  /\bA\/?[Cc]\b/, // A/c, A/C, AC
   /\bacc(?:oun)?t\b/i,
   /\bcard\b/i,
-  /\b(?:xx+|x{2,}|\*{2,})\d{3,}\b/,     // masked card/account tail e.g. xxxx1234
+  /\b(?:xx+|x{2,}|\*{2,})\d{3,}\b/, // masked card/account tail e.g. xxxx1234
   /\bUPI\b/i,
   /\bIMPS\b/i,
   /\bNEFT\b/i,
@@ -152,11 +179,10 @@ const TXN_STRUCTURE_RE = [
   /\bref(?:erence)?\s*(?:no|id|#)\b/i,
 ];
 function hasTxnStructure(body: string): boolean {
-  return TXN_STRUCTURE_RE.some(r => r.test(body));
+  return TXN_STRUCTURE_RE.some((r) => r.test(body));
 }
 
-const AMOUNT_RE =
-  /(?:Rs\.?\s*|INR\s*|₹\s*)([0-9,]+(?:\.[0-9]{1,2})?)/i;
+const AMOUNT_RE = /(?:Rs\.?\s*|INR\s*|₹\s*)([0-9,]+(?:\.[0-9]{1,2})?)/i;
 
 function extractAmount(body: string): number | null {
   const m = body.match(AMOUNT_RE);
@@ -189,13 +215,13 @@ const CREDIT_SIGNALS_WEAK = [
 
 function detectKind(body: string): 'debit' | 'credit' | null {
   // Strong credit wins immediately — these words are unambiguous
-  if (CREDIT_SIGNALS_STRONG.some(r => r.test(body))) return 'credit';
+  if (CREDIT_SIGNALS_STRONG.some((r) => r.test(body))) return 'credit';
 
   // Debit beats weak credit
-  if (DEBIT_SIGNALS.some(r => r.test(body))) return 'debit';
+  if (DEBIT_SIGNALS.some((r) => r.test(body))) return 'debit';
 
   // Weak credit only if no debit present
-  if (CREDIT_SIGNALS_WEAK.some(r => r.test(body))) return 'credit';
+  if (CREDIT_SIGNALS_WEAK.some((r) => r.test(body))) return 'credit';
 
   return null;
 }
@@ -204,7 +230,8 @@ const UPI_REF_RE = /UPI\/[A-Z0-9]+\/[0-9]+\/([^/\n.]+?)(?:\s+(?:Ref|Not\s+you)|\
 // HDFC-style "To <MERCHANT NAME>" on its own line (multi-word, all-caps merchants).
 // Strict-case so prose words like "to mobile" / "to harshitkhera277" are skipped here
 // and handled by later, looser matchers.
-const TO_LINE_RE = /(?:^|\n)\s*To\s+([A-Z][A-Za-z0-9&'_.-]*(?:\s+[A-Z][A-Za-z0-9&'_.-]*){0,5})\s*(?=\n|$)/;
+const TO_LINE_RE =
+  /(?:^|\n)\s*To\s+([A-Z][A-Za-z0-9&'_.-]*(?:\s+[A-Z][A-Za-z0-9&'_.-]*){0,5})\s*(?=\n|$)/;
 // Strict-case (no /i) on the FIRST word so prose like "on your", "to mobile",
 // "at your" doesn't get captured. Subsequent words may be lower or mixed case
 // (Indian merchant names like "Shri abhyudaya udyama", "Mahendra kumar").
@@ -213,7 +240,8 @@ const TO_LINE_RE = /(?:^|\n)\s*To\s+([A-Z][A-Za-z0-9&'_.-]*(?:\s+[A-Z][A-Za-z0-9
 const ON_MERCHANT_RE =
   /\b(?:on|at|to|On|At|To|ON|AT|TO)\s+([A-Z][A-Za-z0-9&'_-]+(?:\s+[A-Za-z][A-Za-z0-9&'_-]+){0,4})(?=[\s.,!?]|$)/g;
 // "; <NAME> credited" — ICICI P2P credit naming the sender.
-const SEMI_CREDITED_RE = /[;,]\s*([A-Z][A-Za-z0-9&'_.-]*(?:\s+[A-Z][A-Za-z0-9&'_.-]*){0,3})\s+credited\b/;
+const SEMI_CREDITED_RE =
+  /[;,]\s*([A-Z][A-Za-z0-9&'_.-]*(?:\s+[A-Z][A-Za-z0-9&'_.-]*){0,3})\s+credited\b/;
 // Standalone all-caps merchant block, often on its own line in card SMS
 // (e.g. Axis CC: "AMAZON MKTP", "BIG BAZAAR"). Must be 4+ chars and not a
 // known bank/section keyword.
@@ -221,31 +249,118 @@ const ALLCAPS_MERCHANT_RE =
   /(?:^|\n|\s)([A-Z][A-Z0-9&'_.-]{2,}(?:\s+[A-Z][A-Z0-9&'_.-]{1,}){0,4})(?=\s|\n|\.|,|$)/g;
 
 const NOT_MERCHANT = new Set([
-  'your', 'the', 'a', 'an', 'this', 'that', 'us', 'call', 'sms',
-  'behalf', 'account', 'date', 'time', 'mobile', 'card', 'credit', 'debit',
-  'no', 'no.', 'ref', 'ref.', 'ref#', 'rs', 'rs.', 'inr',
-  'avl', 'bal', 'limit', 'block', 'not', 'you', 'is', 'has', 'been',
-  'from', 'and', 'cr', 'cr.', 'dr', 'dr.', 'upi', 'imps', 'neft', 'rtgs',
+  'your',
+  'the',
+  'a',
+  'an',
+  'this',
+  'that',
+  'us',
+  'call',
+  'sms',
+  'behalf',
+  'account',
+  'date',
+  'time',
+  'mobile',
+  'card',
+  'credit',
+  'debit',
+  'no',
+  'no.',
+  'ref',
+  'ref.',
+  'ref#',
+  'rs',
+  'rs.',
+  'inr',
+  'avl',
+  'bal',
+  'limit',
+  'block',
+  'not',
+  'you',
+  'is',
+  'has',
+  'been',
+  'from',
+  'and',
+  'cr',
+  'cr.',
+  'dr',
+  'dr.',
+  'upi',
+  'imps',
+  'neft',
+  'rtgs',
 ]);
 
 // Trailing tokens that clearly aren't part of a merchant name and should be
 // stripped (e.g. "Swiggy is" → "Swiggy", "Zomato successful" → "Zomato").
 const TRAILING_JUNK = new Set([
-  'is', 'was', 'has', 'have', 'for', 'on', 'at', 'to', 'of', 'in',
-  'successful', 'success', 'completed', 'done', 'today', 'now',
-  'and', 'with', 'by', 'from', 'the', 'a', 'an', 'ltd', 'limited',
+  'is',
+  'was',
+  'has',
+  'have',
+  'for',
+  'on',
+  'at',
+  'to',
+  'of',
+  'in',
+  'successful',
+  'success',
+  'completed',
+  'done',
+  'today',
+  'now',
+  'and',
+  'with',
+  'by',
+  'from',
+  'the',
+  'a',
+  'an',
+  'ltd',
+  'limited',
 ]);
 
 // Words that, even if uppercase, are never a merchant. Used to filter ALLCAPS_MERCHANT_RE.
 const ALLCAPS_BLOCKLIST = new Set([
-  'IST', 'PM', 'AM', 'INR', 'RS', 'UPI', 'IMPS', 'NEFT', 'RTGS',
-  'A/C', 'AC', 'OTP', 'SMS', 'CALL', 'BLOCK', 'NOT', 'YOU', 'REF',
-  'AVL', 'BAL', 'LIMIT', 'CARD', 'NO', 'DR', 'CR', 'TXN',
+  'IST',
+  'PM',
+  'AM',
+  'INR',
+  'RS',
+  'UPI',
+  'IMPS',
+  'NEFT',
+  'RTGS',
+  'A/C',
+  'AC',
+  'OTP',
+  'SMS',
+  'CALL',
+  'BLOCK',
+  'NOT',
+  'YOU',
+  'REF',
+  'AVL',
+  'BAL',
+  'LIMIT',
+  'CARD',
+  'NO',
+  'DR',
+  'CR',
+  'TXN',
   ...Object.values(ENTITY_MAP),
 ]);
 
 function cleanMerchantName(raw: string): string {
-  let name = raw.trim().replace(/\s+/g, ' ').replace(/[.,!;:]+$/, '');
+  let name = raw
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[.,!;:]+$/, '');
   // Strip trailing junk tokens like "is", "successful", "for".
   const parts = name.split(' ');
   while (parts.length > 1 && TRAILING_JUNK.has(parts[parts.length - 1].toLowerCase())) {
@@ -306,7 +421,7 @@ function extractMerchant(body: string): string | null {
     const candidate = m[1].trim();
     const tokens = candidate.split(/\s+/);
     // Reject if the whole match is just blocklisted tokens.
-    const meaningful = tokens.filter(t => !ALLCAPS_BLOCKLIST.has(t.replace(/[.,]/g, '')));
+    const meaningful = tokens.filter((t) => !ALLCAPS_BLOCKLIST.has(t.replace(/[.,]/g, '')));
     if (meaningful.length === 0) continue;
     const name = cleanMerchantName(meaningful.join(' '));
     if (isUsableMerchant(name)) return name;
@@ -393,7 +508,8 @@ export function parseSms(
     if (!hasTxnStructure(raw)) return null;
     // T = transactional, S = service — both can carry transaction SMS
     if (sender.suffix === 'T' || sender.suffix === 'S') kind = 'debit';
-    else if (!sender.suffix) kind = 'debit'; // unknown suffix, amount present — assume debit
+    else if (!sender.suffix)
+      kind = 'debit'; // unknown suffix, amount present — assume debit
     else return null;
   }
 

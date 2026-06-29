@@ -25,7 +25,10 @@ export type IconName =
   | 'lock'
   | 'sparkle'
   | 'zap'
-  | 'swap';
+  | 'swap'
+  | 'wallet'
+  | 'card'
+  | 'bank';
 
 type Props = {
   name: IconName;
@@ -34,12 +37,7 @@ type Props = {
   strokeWidth?: number;
 };
 
-export function Icon({
-  name,
-  size = 18,
-  color = '#F5F5F5',
-  strokeWidth = 1.5,
-}: Props) {
+export function Icon({ name, size = 18, color = '#F5F5F5', strokeWidth = 1.5 }: Props) {
   const p = {
     stroke: color,
     strokeWidth,
@@ -122,19 +120,13 @@ export function Icon({
     case 'sms':
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24">
-          <Path
-            {...p}
-            d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-          />
+          <Path {...p} d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         </Svg>
       );
     case 'bell':
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24">
-          <Path
-            {...p}
-            d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"
-          />
+          <Path {...p} d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" />
         </Svg>
       );
     case 'edit':
@@ -215,6 +207,27 @@ export function Icon({
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24">
           <Path {...p} d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
+        </Svg>
+      );
+    case 'wallet':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24">
+          <Path {...p} d="M3 7a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2v0H5a2 2 0 0 0-2 2z" />
+          <Path {...p} d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H5" />
+          <Circle {...p} cx="17" cy="13" r="1" />
+        </Svg>
+      );
+    case 'card':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24">
+          <Rect {...p} x="2" y="5" width="20" height="14" rx="2" />
+          <Path {...p} d="M2 10h20M6 15h4" />
+        </Svg>
+      );
+    case 'bank':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24">
+          <Path {...p} d="M3 9l9-5 9 5M4 9v8M9 9v8M15 9v8M20 9v8M3 21h18" />
         </Svg>
       );
     default:

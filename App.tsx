@@ -19,11 +19,13 @@ import { getDb } from './src/db';
 import { scanInboxAndEnqueue } from './src/sms/ingest';
 import { SMS_SUPPORTED } from './src/sms/reader';
 import { getTransaction, type Transaction } from './src/db/transactions';
+import type { Account } from './src/db/accounts';
 import { useSettings } from './src/store/settings';
 import { useTransactions } from './src/store/transactions';
 import { usePending } from './src/store/pending';
 import { useBudgets } from './src/store/budgets';
 import { useCategories } from './src/store/categories';
+import { useAccounts } from './src/store/accounts';
 import { C } from './src/lib/tokens';
 
 import { OnboardingScreen } from './src/screens/Onboarding';
@@ -31,6 +33,8 @@ import { HomeScreen } from './src/screens/Home';
 import { LedgerScreen } from './src/screens/Ledger';
 import { InsightsScreen } from './src/screens/Insights';
 import { SettingsScreen } from './src/screens/Settings';
+import { PortfolioScreen } from './src/screens/Portfolio';
+import { AccountDetailScreen } from './src/screens/AccountDetail';
 import { TxDetailScreen } from './src/screens/TxDetail';
 import { CategorySheet } from './src/screens/CategorySheet';
 import { MerchantSheet } from './src/screens/MerchantSheet';
@@ -60,6 +64,7 @@ export default function App() {
         useTransactions.getState().refresh(),
         usePending.getState().refresh(),
         useBudgets.getState().refresh(),
+        useAccounts.getState().refresh(),
       ]);
       setDbReady(true);
     })();
@@ -122,8 +127,14 @@ function Root() {
   const [tab, setTab] = useState<Tab>('home');
   const [openTxId, setOpenTxId] = useState<string | null>(null);
   const [openTx, setOpenTx] = useState<Transaction | null>(null);
-  const [openCategory, setOpenCategory] = useState<{ key: string; txs: Transaction[] } | null>(null);
-  const [openMerchant, setOpenMerchant] = useState<{ name: string; txs: Transaction[] } | null>(null);
+  const [openCategory, setOpenCategory] = useState<{ key: string; txs: Transaction[] } | null>(
+    null
+  );
+  const [openMerchant, setOpenMerchant] = useState<{ name: string; txs: Transaction[] } | null>(
+    null
+  );
+  const [openAccount, setOpenAccount] = useState<Account | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [pendingOpen, setPendingOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
 
@@ -152,6 +163,14 @@ function Root() {
         setOpenTxId(null);
         return true;
       }
+      if (settingsOpen) {
+        setSettingsOpen(false);
+        return true;
+      }
+      if (openAccount) {
+        setOpenAccount(null);
+        return true;
+      }
       if (openCategory) {
         setOpenCategory(null);
         return true;
@@ -175,7 +194,16 @@ function Root() {
       return false;
     });
     return () => sub.remove();
-  }, [openTxId, openCategory, openMerchant, pendingOpen, manualOpen, tab]);
+  }, [
+    openTxId,
+    settingsOpen,
+    openAccount,
+    openCategory,
+    openMerchant,
+    pendingOpen,
+    manualOpen,
+    tab,
+  ]);
 
   const tabContent = useMemo(() => {
     switch (tab) {
@@ -185,6 +213,7 @@ function Root() {
             onOpenTx={setOpenTxId}
             onOpenPending={() => setPendingOpen(true)}
             onGoTxns={() => setTab('txns')}
+            onOpenSettings={() => setSettingsOpen(true)}
           />
         );
       case 'txns':
@@ -197,13 +226,20 @@ function Root() {
               setOpenCategory({ key, txs: sorted });
             }}
             onOpenMerchant={(name, txs) => {
-              const sorted = [...txs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+              const sorted = [...txs].sort(
+                (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+              );
               setOpenMerchant({ name, txs: sorted });
             }}
           />
         );
-      case 'settings':
-        return <SettingsScreen />;
+      case 'portfolio':
+        return (
+          <PortfolioScreen
+            onOpenAccount={setOpenAccount}
+            onOpenSettings={() => setSettingsOpen(true)}
+          />
+        );
     }
   }, [tab]);
 
@@ -219,9 +255,18 @@ function Root() {
 
   const overlay = openTx ? (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
-      <TxDetailScreen
-        tx={openTx}
-        onBack={() => setOpenTxId(null)}
+      <TxDetailScreen tx={openTx} onBack={() => setOpenTxId(null)} />
+    </View>
+  ) : settingsOpen ? (
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <SettingsScreen onBack={() => setSettingsOpen(false)} />
+    </View>
+  ) : openAccount ? (
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <AccountDetailScreen
+        account={openAccount}
+        onBack={() => setOpenAccount(null)}
+        onOpenTx={setOpenTxId}
       />
     </View>
   ) : openCategory ? (
@@ -251,19 +296,9 @@ function Root() {
         <View style={{ flex: 1 }}>{overlay}</View>
       ) : (
         <>
-          <BottomNav
-            active={tab}
-            onTab={setTab}
-            onAdd={() => setManualOpen(true)}
-          />
-          <PendingSheet
-            visible={pendingOpen}
-            onClose={() => setPendingOpen(false)}
-          />
-          <ManualSheet
-            visible={manualOpen}
-            onClose={() => setManualOpen(false)}
-          />
+          <BottomNav active={tab} onTab={setTab} onAdd={() => setManualOpen(true)} />
+          <PendingSheet visible={pendingOpen} onClose={() => setPendingOpen(false)} />
+          <ManualSheet visible={manualOpen} onClose={() => setManualOpen(false)} />
         </>
       )}
     </View>

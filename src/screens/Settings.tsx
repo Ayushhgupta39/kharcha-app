@@ -14,8 +14,10 @@ import { T, Tag } from '../components/Text';
 import { Icon } from '../components/Icon';
 import { Sheet } from '../components/Sheet';
 import { Button } from '../components/Button';
+import { CategoryGlyph } from '../components/CategoryGlyph';
 import { C, F } from '../lib/tokens';
 import { formatAmount } from '../lib/format';
+import { BUILTIN_INCOME_CATEGORIES, getCategory } from '../lib/categories';
 import { useSettings } from '../store/settings';
 import { useBudgets } from '../store/budgets';
 import { useTransactions } from '../store/transactions';
@@ -24,11 +26,13 @@ import { SMS_SUPPORTED, ensureSmsPermission } from '../sms/reader';
 import { scanInboxAndEnqueue } from '../sms/ingest';
 import type { Budget } from '../db/budgets';
 
-type PickerKind = null | 'scanDepth' | 'budget' | 'categories';
+type PickerKind = null | 'scanDepth' | 'budget' | 'categories' | 'catBudget';
 
 const GLYPH_OPTIONS = ['◉', '◎', '◇', '◈', '▽', '▷', '◁', '△', '⬡', '⬢', '✦', '✧', '⊕', '⊗', '⊘'];
 
-export function SettingsScreen() {
+type ScreenProps = { onBack?: () => void };
+
+export function SettingsScreen({ onBack }: ScreenProps = {}) {
   const insets = useSafeAreaInsets();
   const settings = useSettings();
   const budgets = useBudgets((s) => s.budgets);
@@ -40,9 +44,16 @@ export function SettingsScreen() {
   const addCategory = useCategories((s) => s.add);
   const removeCategory = useCategories((s) => s.remove);
 
-  const overall = useMemo(
-    () => budgets.find((b) => b.kind === 'overall'),
+  const overall = useMemo(() => budgets.find((b) => b.kind === 'overall'), [budgets]);
+  const catBudgets = useMemo(
+    () => budgets.filter((b) => b.kind === 'category' && b.category),
     [budgets]
+  );
+  // Categories eligible for budgets: expenses + invest/lent (no income).
+  const incomeKeys = useMemo(() => new Set(BUILTIN_INCOME_CATEGORIES.map((c) => c.key)), []);
+  const budgetableCats = useMemo(
+    () => cats.filter((c) => !incomeKeys.has(c.key)),
+    [cats, incomeKeys]
   );
 
   const [picker, setPicker] = useState<PickerKind>(null);
@@ -50,6 +61,9 @@ export function SettingsScreen() {
   const [draftPct, setDraftPct] = useState('85');
   const [newCatLabel, setNewCatLabel] = useState('');
   const [newCatGlyph, setNewCatGlyph] = useState(GLYPH_OPTIONS[0]);
+  const [cbCategory, setCbCategory] = useState<string | null>(null);
+  const [cbAmount, setCbAmount] = useState('');
+  const [cbEditId, setCbEditId] = useState<string | null>(null);
 
   const onToggleSms = async (v: boolean) => {
     if (!SMS_SUPPORTED) {
@@ -91,7 +105,10 @@ export function SettingsScreen() {
   const saveNewCategory = async () => {
     const label = newCatLabel.trim();
     if (!label) return;
-    const key = label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const key = label
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_]/g, '');
     if (!key) {
       Alert.alert('Invalid name', 'Use letters or numbers.');
       return;
@@ -106,21 +123,17 @@ export function SettingsScreen() {
   };
 
   const confirmDeleteCategory = (key: string, label: string) => {
-    Alert.alert(
-      `Remove "${label}"?`,
-      'All transactions in this category will be moved to Other.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            await removeCategory(key);
-            await refreshTxs();
-          },
+    Alert.alert(`Remove "${label}"?`, 'All transactions in this category will be moved to Other.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          await removeCategory(key);
+          await refreshTxs();
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const openBudgetEditor = () => {
@@ -157,6 +170,41 @@ export function SettingsScreen() {
     setPicker(null);
   };
 
+  const openCatBudget = (existing?: Budget) => {
+    if (existing) {
+      setCbEditId(existing.id);
+      setCbCategory(existing.category ?? null);
+      setCbAmount(String(Math.round(existing.amount / 100)));
+    } else {
+      setCbEditId(null);
+      setCbCategory(null);
+      setCbAmount('');
+    }
+    setPicker('catBudget');
+  };
+
+  const saveCatBudget = async () => {
+    const rupees = parseInt(cbAmount, 10);
+    if (!cbCategory) {
+      Alert.alert('Pick a category', 'Choose which category this budget is for.');
+      return;
+    }
+    if (!Number.isFinite(rupees) || rupees <= 0) {
+      Alert.alert('Invalid amount', 'Enter a positive rupee amount.');
+      return;
+    }
+    // One budget per category — reuse the existing row for that category if any.
+    const existing = catBudgets.find((b) => b.category === cbCategory);
+    await saveBudget({
+      ...(cbEditId ? { id: cbEditId } : existing ? { id: existing.id } : {}),
+      kind: 'category',
+      category: cbCategory,
+      amount: rupees * 100,
+      alert_pct: 85,
+    } as Omit<Budget, 'id'> & { id?: string });
+    setPicker(null);
+  };
+
   const confirmReset = () => {
     Alert.alert(
       'Reset all data',
@@ -187,6 +235,16 @@ export function SettingsScreen() {
         paddingBottom: 40,
       }}
       showsVerticalScrollIndicator={false}>
+      {onBack ? (
+        <Pressable
+          onPress={onBack}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <Icon name="arrow-l" size={18} color={C.text} />
+          <T mono style={{ fontSize: 11, letterSpacing: 1.2 }}>
+            BACK
+          </T>
+        </Pressable>
+      ) : null}
       <Tag style={{ marginBottom: 10 }}>SETTINGS</Tag>
       <T mono style={{ fontSize: 28, letterSpacing: -0.6, marginBottom: 24 }}>
         Your kharcha
@@ -235,6 +293,11 @@ export function SettingsScreen() {
           label="Alert at"
           value={overall ? `${overall.alert_pct}% used` : '—'}
           onPress={openBudgetEditor}
+        />
+        <PressRow
+          label="Category budgets"
+          value={catBudgets.length ? `${catBudgets.length} set` : 'Add'}
+          onPress={() => openCatBudget()}
           last
         />
       </Section>
@@ -250,9 +313,7 @@ export function SettingsScreen() {
         <PressRow
           label="Export all data"
           value="→"
-          onPress={() =>
-            Alert.alert('Export', 'CSV export is coming soon.')
-          }
+          onPress={() => Alert.alert('Export', 'CSV export is coming soon.')}
           last
         />
       </Section>
@@ -261,13 +322,7 @@ export function SettingsScreen() {
         <StaticRow label="Storage" value="On-device only" on />
         <StaticRow label="Backup" value="Off" />
         <StaticRow label="Analytics" value="Off" />
-        <PressRow
-          label="Reset all data"
-          value="→"
-          onPress={confirmReset}
-          danger
-          last
-        />
+        <PressRow label="Reset all data" value="→" onPress={confirmReset} danger last />
       </Section>
 
       {Platform.OS === 'ios' ? (
@@ -280,18 +335,12 @@ export function SettingsScreen() {
       ) : null}
 
       <View style={{ alignItems: 'center', marginTop: 30 }}>
-        <T
-          mono
-          color={C.text4}
-          style={{ fontSize: 9, letterSpacing: 1.4 }}>
+        <T mono color={C.text4} style={{ fontSize: 9, letterSpacing: 1.4 }}>
           KHARCHA · V0.1
         </T>
       </View>
 
-      <Sheet
-        visible={picker === 'scanDepth'}
-        title="SCAN DEPTH"
-        onClose={() => setPicker(null)}>
+      <Sheet visible={picker === 'scanDepth'} title="SCAN DEPTH" onClose={() => setPicker(null)}>
         <View style={{ padding: 20, gap: 10 }}>
           <T color={C.text2} style={{ fontSize: 13, lineHeight: 19, marginBottom: 6 }}>
             How far back should we scan your inbox for bank SMS?
@@ -329,26 +378,39 @@ export function SettingsScreen() {
           setNewCatLabel('');
           setNewCatGlyph(GLYPH_OPTIONS[0]);
         }}>
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 20 }}
+          showsVerticalScrollIndicator={false}>
           <View style={{ padding: 20, gap: 0 }}>
             <Tag style={{ marginBottom: 8 }}>BUILT-IN</Tag>
-            {cats.filter((c) => c.builtin).map((c) => (
-              <View key={c.key} style={[styles.catManageRow, { borderBottomColor: C.border }]}>
-                <T mono style={{ fontSize: 18, width: 28 }}>{c.glyph}</T>
-                <T style={{ fontSize: 13, flex: 1 }}>{c.label}</T>
-                {c.key === 'other' && (
-                  <T mono color={C.text4} style={{ fontSize: 10, letterSpacing: 1 }}>PROTECTED</T>
-                )}
-              </View>
-            ))}
+            {cats
+              .filter((c) => c.builtin)
+              .map((c) => (
+                <View key={c.key} style={[styles.catManageRow, { borderBottomColor: C.border }]}>
+                  <T mono style={{ fontSize: 18, width: 28 }}>
+                    {c.glyph}
+                  </T>
+                  <T style={{ fontSize: 13, flex: 1 }}>{c.label}</T>
+                  {c.key === 'other' && (
+                    <T mono color={C.text4} style={{ fontSize: 10, letterSpacing: 1 }}>
+                      PROTECTED
+                    </T>
+                  )}
+                </View>
+              ))}
 
             <Tag style={{ marginTop: 16, marginBottom: 8 }}>CUSTOM</Tag>
             {customCats.length === 0 && (
-              <T color={C.text3} style={{ fontSize: 13, marginBottom: 10 }}>No custom categories yet.</T>
+              <T color={C.text3} style={{ fontSize: 13, marginBottom: 10 }}>
+                No custom categories yet.
+              </T>
             )}
             {customCats.map((c) => (
               <View key={c.key} style={[styles.catManageRow, { borderBottomColor: C.border }]}>
-                <T mono style={{ fontSize: 18, width: 28 }}>{c.glyph}</T>
+                <T mono style={{ fontSize: 18, width: 28 }}>
+                  {c.glyph}
+                </T>
                 <T style={{ fontSize: 13, flex: 1 }}>{c.label}</T>
                 <Pressable
                   onPress={() => confirmDeleteCategory(c.key, c.label)}
@@ -367,10 +429,14 @@ export function SettingsScreen() {
                   onPress={() => setNewCatGlyph(g)}
                   style={[
                     styles.glyphCell,
-                    { borderColor: newCatGlyph === g ? C.accent : C.border2,
-                      backgroundColor: newCatGlyph === g ? C.accentGlow : C.surface },
+                    {
+                      borderColor: newCatGlyph === g ? C.accent : C.border2,
+                      backgroundColor: newCatGlyph === g ? C.accentGlow : C.surface,
+                    },
                   ]}>
-                  <T mono style={{ fontSize: 16, color: newCatGlyph === g ? C.accent : C.text2 }}>{g}</T>
+                  <T mono style={{ fontSize: 16, color: newCatGlyph === g ? C.accent : C.text2 }}>
+                    {g}
+                  </T>
                 </Pressable>
               ))}
             </View>
@@ -393,10 +459,7 @@ export function SettingsScreen() {
         </ScrollView>
       </Sheet>
 
-      <Sheet
-        visible={picker === 'budget'}
-        title="MONTHLY BUDGET"
-        onClose={() => setPicker(null)}>
+      <Sheet visible={picker === 'budget'} title="MONTHLY BUDGET" onClose={() => setPicker(null)}>
         <View style={{ padding: 20, gap: 16 }}>
           <View style={styles.field}>
             <Tag style={{ marginBottom: 6 }}>AMOUNT (₹)</Tag>
@@ -437,17 +500,91 @@ export function SettingsScreen() {
           </View>
         </View>
       </Sheet>
+
+      <Sheet
+        visible={picker === 'catBudget'}
+        title="CATEGORY BUDGETS"
+        onClose={() => setPicker(null)}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 20, paddingBottom: 28 }}
+          showsVerticalScrollIndicator={false}>
+          {catBudgets.length > 0 ? (
+            <>
+              <Tag style={{ marginBottom: 10 }}>CURRENT</Tag>
+              {catBudgets.map((b) => {
+                const cat = getCategory(b.category as string, customCats);
+                return (
+                  <View key={b.id} style={styles.catBudgetRow}>
+                    <CategoryGlyph category={b.category as string} size={28} customs={customCats} />
+                    <T style={{ fontSize: 13, flex: 1 }}>{cat.label}</T>
+                    <Pressable onPress={() => openCatBudget(b)}>
+                      <T mono style={{ fontSize: 12, color: C.text }}>
+                        {formatAmount(b.amount)}
+                      </T>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => removeBudget(b.id)}
+                      hitSlop={8}
+                      style={{ padding: 4 }}>
+                      <Icon name="x" size={15} color={C.danger} />
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </>
+          ) : null}
+
+          <Tag style={{ marginTop: catBudgets.length ? 18 : 0, marginBottom: 8 }}>
+            {cbEditId ? 'EDIT' : 'CATEGORY'}
+          </Tag>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+            {budgetableCats.map((c) => {
+              const active = cbCategory === c.key;
+              return (
+                <Pressable
+                  key={c.key}
+                  onPress={() => setCbCategory(c.key)}
+                  style={[
+                    styles.cbCatChip,
+                    {
+                      borderColor: active ? C.accent : C.border2,
+                      backgroundColor: active ? C.accentGlow : C.surface,
+                    },
+                  ]}>
+                  <T mono style={{ fontSize: 14, color: active ? C.accent : C.text2 }}>
+                    {c.glyph}
+                  </T>
+                  <T style={{ fontSize: 12, color: active ? C.accent : C.text2 }}>
+                    {c.label.split(' ')[0]}
+                  </T>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Tag style={{ marginBottom: 6 }}>AMOUNT (₹)</Tag>
+          <TextInput
+            value={cbAmount}
+            onChangeText={setCbAmount}
+            keyboardType="number-pad"
+            placeholder="10000"
+            placeholderTextColor={C.text4}
+            style={styles.input}
+            selectionColor={C.accent}
+          />
+          <Button
+            label={cbEditId ? 'UPDATE BUDGET' : 'SET BUDGET'}
+            onPress={saveCatBudget}
+            disabled={!cbCategory || !cbAmount.trim()}
+            style={{ marginTop: 16, opacity: cbCategory && cbAmount.trim() ? 1 : 0.35 }}
+          />
+        </ScrollView>
+      </Sheet>
     </ScrollView>
   );
 }
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View style={{ marginBottom: 20 }}>
       <Tag style={{ marginBottom: 10 }}>{title}</Tag>
@@ -613,6 +750,23 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: 2,
+  },
+  catBudgetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  cbCatChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderWidth: 1,
     borderRadius: 2,
   },

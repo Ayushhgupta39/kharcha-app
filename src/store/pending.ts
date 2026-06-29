@@ -9,7 +9,9 @@ import {
 } from '../db/pending';
 import { insertTransaction } from '../db/transactions';
 import { setMerchantCategory } from '../db/merchantMap';
+import { listAccounts, resolveAccountId } from '../db/accounts';
 import { useTransactions } from './transactions';
+import { useSettings } from './settings';
 
 type State = {
   pending: PendingSms[];
@@ -45,14 +47,18 @@ export const usePending = create<State & Actions>((set, get) => ({
     const amount = overrides?.amount ?? p.amount;
     const merchant = overrides?.merchant ?? p.merchant;
     const category = overrides?.category ?? p.category;
+    const accounts = await listAccounts();
+    const defaultAccountId = useSettings.getState().defaultAccountId;
     await insertTransaction({
       amount,
       type: 'debit',
+      kind: 'expense',
       merchant,
       category,
       date: p.date,
       source: 'sms',
       bank: p.bank,
+      account_id: resolveAccountId(accounts, defaultAccountId, p.bank),
       raw_sms: p.raw_sms,
     });
     if (overrides?.category && overrides.category !== p.category) {

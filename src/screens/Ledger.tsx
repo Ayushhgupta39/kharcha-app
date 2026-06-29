@@ -1,12 +1,5 @@
 import { useMemo, useState } from 'react';
-import {
-  FlatList,
-  Pressable,
-  ScrollView,
-  TextInput,
-  View,
-  StyleSheet,
-} from 'react-native';
+import { FlatList, Pressable, ScrollView, TextInput, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, parseISO, isToday, isYesterday } from 'date-fns';
 import { T, Tag } from '../components/Text';
@@ -56,11 +49,7 @@ export function LedgerScreen({ onOpenTx }: Props) {
     return txs.filter((t) => {
       if (filterCat && t.category !== filterCat) return false;
       if (source !== 'all' && t.source !== source) return false;
-      if (
-        search &&
-        !t.merchant.toLowerCase().includes(search.toLowerCase())
-      )
-        return false;
+      if (search && !t.merchant.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
   }, [txs, search, filterCat, source]);
@@ -99,7 +88,14 @@ export function LedgerScreen({ onOpenTx }: Props) {
     return m;
   }, [txs]);
   const topCats = useMemo(() => {
-    const INCOME_CATS = new Set(['salary', 'freelance', 'refund', 'investment', 'rental', 'income_other']);
+    const INCOME_CATS = new Set([
+      'salary',
+      'freelance',
+      'refund',
+      'investment',
+      'rental',
+      'income_other',
+    ]);
     return Object.keys(catCounts).sort((a, b) => {
       const aIncome = INCOME_CATS.has(a);
       const bIncome = INCOME_CATS.has(b);
@@ -245,10 +241,7 @@ export function LedgerScreen({ onOpenTx }: Props) {
                   style={{ fontSize: 10, letterSpacing: 1 }}>
                   {label}
                 </T>
-                <T
-                  mono
-                  color={active ? '#0A0A0A' : C.text2}
-                  style={{ fontSize: 10, opacity: 0.6 }}>
+                <T mono color={active ? '#0A0A0A' : C.text2} style={{ fontSize: 10, opacity: 0.6 }}>
                   {catCounts[c]}
                 </T>
               </Pressable>
@@ -278,20 +271,11 @@ export function LedgerScreen({ onOpenTx }: Props) {
               </View>
             );
           }
-          return (
-            <TxRow
-              tx={item.tx}
-              onPress={() => onOpenTx(item.tx.id)}
-              customs={customs}
-            />
-          );
+          return <TxRow tx={item.tx} onPress={() => onOpenTx(item.tx.id)} customs={customs} />;
         }}
         ListEmptyComponent={
           <View style={{ padding: 40 }}>
-            <T
-              mono
-              color={C.text3}
-              style={{ fontSize: 11, textAlign: 'center', letterSpacing: 1 }}>
+            <T mono color={C.text3} style={{ fontSize: 11, textAlign: 'center', letterSpacing: 1 }}>
               NO MATCHES
             </T>
           </View>

@@ -2,13 +2,7 @@ import { View } from 'react-native';
 import { Tag } from './Text';
 import { C } from '../lib/tokens';
 
-export function LabeledRule({
-  label,
-  right,
-}: {
-  label: string;
-  right?: React.ReactNode;
-}) {
+export function LabeledRule({ label, right }: { label: string; right?: React.ReactNode }) {
   return (
     <View
       style={{

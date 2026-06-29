@@ -74,9 +74,13 @@ export function OnboardingScreen({ onDone }: Props) {
       <View style={[styles.page, { paddingTop, paddingBottom }]}>
         <View style={styles.logoRow}>
           <View style={styles.logoSquare}>
-            <T mono weight="700" style={{ color: '#0A0A0A', fontSize: 16 }}>K</T>
+            <T mono weight="700" style={{ color: '#0A0A0A', fontSize: 16 }}>
+              K
+            </T>
           </View>
-          <T mono weight="600" style={{ fontSize: 13, letterSpacing: 1.3 }}>KHARCHA</T>
+          <T mono weight="600" style={{ fontSize: 13, letterSpacing: 1.3 }}>
+            KHARCHA
+          </T>
         </View>
 
         <View style={{ flex: 1 }}>
@@ -96,10 +100,16 @@ export function OnboardingScreen({ onDone }: Props) {
               ['03', 'No cloud, no login', 'your money, your machine'],
             ].map(([n, h, s]) => (
               <View key={n} style={{ flexDirection: 'row', gap: 14 }}>
-                <T mono color={C.text4} style={{ fontSize: 11, paddingTop: 2 }}>{n}</T>
+                <T mono color={C.text4} style={{ fontSize: 11, paddingTop: 2 }}>
+                  {n}
+                </T>
                 <View style={{ flex: 1 }}>
-                  <T weight="500" style={{ fontSize: 14, marginBottom: 2 }}>{h}</T>
-                  <T color={C.text3} style={{ fontSize: 12 }}>{s}</T>
+                  <T weight="500" style={{ fontSize: 14, marginBottom: 2 }}>
+                    {h}
+                  </T>
+                  <T color={C.text3} style={{ fontSize: 12 }}>
+                    {s}
+                  </T>
                 </View>
               </View>
             ))}
@@ -124,10 +134,15 @@ export function OnboardingScreen({ onDone }: Props) {
           onPress={() => setStep(1)}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 40 }}>
           <ArrowLeft size={16} color={C.text3} />
-          <T mono color={C.text3} style={{ fontSize: 11, letterSpacing: 1.2 }}>BACK</T>
+          <T mono color={C.text3} style={{ fontSize: 11, letterSpacing: 1.2 }}>
+            BACK
+          </T>
         </Pressable>
 
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 16 }}>
           <Tag style={{ marginBottom: 14 }}>03 / PERMISSION</Tag>
           <T style={{ fontSize: 30, lineHeight: 33, letterSpacing: -0.6, marginBottom: 18 }}>
             {SMS_SUPPORTED ? 'Allow SMS read access' : 'SMS read\nnot available on iOS'}
@@ -184,7 +199,9 @@ export function OnboardingScreen({ onDone }: Props) {
                 ].map((l) => (
                   <View key={l} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                     <Check size={14} color={C.accent} strokeWidth={2} />
-                    <T color={C.text} style={{ fontSize: 12 }}>{l}</T>
+                    <T color={C.text} style={{ fontSize: 12 }}>
+                      {l}
+                    </T>
                   </View>
                 ))}
               </View>
@@ -195,7 +212,9 @@ export function OnboardingScreen({ onDone }: Props) {
             <Lock size={16} color={C.text3} />
             <T color={C.text2} style={{ fontSize: 11, lineHeight: 16, flex: 1 }}>
               All parsing runs locally. No servers. No analytics.{' '}
-              <T color={C.text3} style={{ fontSize: 11 }}>Works offline.</T>
+              <T color={C.text3} style={{ fontSize: 11 }}>
+                Works offline.
+              </T>
             </T>
           </View>
         </ScrollView>
@@ -215,7 +234,12 @@ export function OnboardingScreen({ onDone }: Props) {
     <View
       style={[
         styles.page,
-        { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 28, overflow: 'hidden', position: 'relative' },
+        {
+          paddingTop: insets.top + 32,
+          paddingBottom: insets.bottom + 28,
+          overflow: 'hidden',
+          position: 'relative',
+        },
       ]}>
       {scanning && SMS_SUPPORTED ? <ScanLine /> : null}
       <View style={{ flex: 1, justifyContent: 'center' }}>
@@ -246,7 +270,9 @@ export function OnboardingScreen({ onDone }: Props) {
                   <T mono color={C.accent} style={{ fontSize: 28, minWidth: 56 }}>
                     {String(n).padStart(2, '0')}
                   </T>
-                  <T color={C.text2} style={{ fontSize: 13 }}>{l}</T>
+                  <T color={C.text2} style={{ fontSize: 13 }}>
+                    {l}
+                  </T>
                 </View>
               ))}
             </View>
@@ -278,12 +304,23 @@ function PreferencesStep({ onBack, onNext }: { onBack: () => void; onNext: () =>
     <View style={[styles.page, { flex: 1 }]}>
       <Pressable
         onPress={onBack}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 40, marginTop: insets.top + 32 }}>
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 40,
+          marginTop: insets.top + 32,
+        }}>
         <ArrowLeft size={16} color={C.text3} />
-        <T mono color={C.text3} style={{ fontSize: 11, letterSpacing: 1.2 }}>BACK</T>
+        <T mono color={C.text3} style={{ fontSize: 11, letterSpacing: 1.2 }}>
+          BACK
+        </T>
       </Pressable>
 
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 16 }}>
         <Tag style={{ marginBottom: 14 }}>02 / PREFERENCES</Tag>
         <T style={{ fontSize: 30, lineHeight: 33, letterSpacing: -0.6, marginBottom: 8 }}>
           How should we handle transactions?
@@ -293,7 +330,11 @@ function PreferencesStep({ onBack, onNext }: { onBack: () => void; onNext: () =>
         </T>
 
         {/* Approve mode */}
-        <T mono weight="600" color={C.text3} style={{ fontSize: 10, letterSpacing: 1.2, marginBottom: 10 }}>
+        <T
+          mono
+          weight="600"
+          color={C.text3}
+          style={{ fontSize: 10, letterSpacing: 1.2, marginBottom: 10 }}>
           TRANSACTION MODE
         </T>
         <View style={{ gap: 8, marginBottom: 32 }}>
@@ -315,20 +356,32 @@ function PreferencesStep({ onBack, onNext }: { onBack: () => void; onNext: () =>
                 key={String(opt.value)}
                 onPress={() => setManualApprove(opt.value)}
                 style={[styles.optionCard, active && styles.optionCardActive]}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 4,
+                  }}>
                   <T weight="500" style={{ fontSize: 14, color: active ? C.text : C.text2 }}>
                     {opt.title}
                   </T>
                   {active ? <Check size={14} color={C.accent} strokeWidth={2.5} /> : null}
                 </View>
-                <T color={C.text3} style={{ fontSize: 12, lineHeight: 17 }}>{opt.desc}</T>
+                <T color={C.text3} style={{ fontSize: 12, lineHeight: 17 }}>
+                  {opt.desc}
+                </T>
               </Pressable>
             );
           })}
         </View>
 
         {/* Scan depth */}
-        <T mono weight="600" color={C.text3} style={{ fontSize: 10, letterSpacing: 1.2, marginBottom: 10 }}>
+        <T
+          mono
+          weight="600"
+          color={C.text3}
+          style={{ fontSize: 10, letterSpacing: 1.2, marginBottom: 10 }}>
           SCAN DEPTH
         </T>
         <T color={C.text3} style={{ fontSize: 12, lineHeight: 17, marginBottom: 12 }}>
@@ -370,7 +423,10 @@ function ScanningAnim() {
       </T>
       <T mono style={{ fontSize: 48, color: C.text, lineHeight: 48 }}>
         {String(n).padStart(3, '0')}
-        <T mono color={C.text4} style={{ fontSize: 48 }}>{' '}/ 047</T>
+        <T mono color={C.text4} style={{ fontSize: 48 }}>
+          {' '}
+          / 047
+        </T>
       </T>
       <View style={{ height: 2, backgroundColor: C.border, borderRadius: 1, overflow: 'hidden' }}>
         <View style={{ height: '100%', width: `${(n / 47) * 100}%`, backgroundColor: C.accent }} />

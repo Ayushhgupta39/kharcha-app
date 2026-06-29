@@ -12,18 +12,13 @@ export type RawSms = {
 export async function ensureSmsPermission(): Promise<boolean> {
   if (!SMS_SUPPORTED) return false;
   try {
-    const read = await PermissionsAndroid.check(
-      PermissionsAndroid.PERMISSIONS.READ_SMS
-    );
+    const read = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_SMS);
     if (read) return true;
     const granted = await PermissionsAndroid.requestMultiple([
       PermissionsAndroid.PERMISSIONS.READ_SMS,
       PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
     ]);
-    return (
-      granted[PermissionsAndroid.PERMISSIONS.READ_SMS] ===
-      PermissionsAndroid.RESULTS.GRANTED
-    );
+    return granted[PermissionsAndroid.PERMISSIONS.READ_SMS] === PermissionsAndroid.RESULTS.GRANTED;
   } catch {
     return false;
   }
@@ -79,7 +74,7 @@ export async function readSmsSince(sinceEpochMs: number): Promise<RawSms[]> {
             return;
           }
 
-          const filtered = arr.filter(s => {
+          const filtered = arr.filter((s) => {
             const addr = s.address ?? '';
             const cat = traiCategory(addr);
             if (cat === 'promotional' || cat === 'government') return false;

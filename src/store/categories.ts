@@ -1,13 +1,6 @@
 import { create } from 'zustand';
-import {
-  deleteCustomCategory,
-  insertCustomCategory,
-  listCustomCategories,
-} from '../db/categories';
-import {
-  BUILTIN_CATEGORIES,
-  type Category,
-} from '../lib/categories';
+import { deleteCustomCategory, insertCustomCategory, listCustomCategories } from '../db/categories';
+import { BUILTIN_CATEGORIES, type Category } from '../lib/categories';
 
 type State = {
   customs: Category[];

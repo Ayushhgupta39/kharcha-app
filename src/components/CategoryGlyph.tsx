@@ -10,12 +10,7 @@ type Props = {
   customs?: Category[];
 };
 
-export function CategoryGlyph({
-  category,
-  size = 36,
-  active = false,
-  customs = [],
-}: Props) {
+export function CategoryGlyph({ category, size = 36, active = false, customs = [] }: Props) {
   const cat = getCategory(category, customs);
   return (
     <View

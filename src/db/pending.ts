@@ -17,23 +17,12 @@ export async function insertPending(
   p: Omit<PendingSms, 'id' | 'status'> & { id?: string }
 ): Promise<PendingSms | null> {
   const db = await getDb();
-  const id =
-    p.id ??
-    Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  const id = p.id ?? Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
   try {
     await db.runAsync(
       `INSERT INTO pending_sms (id, amount, merchant, category, date, bank, raw_sms, sms_hash, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-      [
-        id,
-        p.amount,
-        p.merchant,
-        p.category,
-        p.date,
-        p.bank ?? null,
-        p.raw_sms,
-        p.sms_hash ?? null,
-      ]
+      [id, p.amount, p.merchant, p.category, p.date, p.bank ?? null, p.raw_sms, p.sms_hash ?? null]
     );
     return { ...p, id, status: 'pending' };
   } catch {
@@ -59,18 +48,12 @@ export async function countPending(): Promise<number> {
 
 export async function markConfirmed(id: string): Promise<void> {
   const db = await getDb();
-  await db.runAsync(
-    `UPDATE pending_sms SET status = 'confirmed' WHERE id = ?`,
-    [id]
-  );
+  await db.runAsync(`UPDATE pending_sms SET status = 'confirmed' WHERE id = ?`, [id]);
 }
 
 export async function markIgnored(id: string): Promise<void> {
   const db = await getDb();
-  await db.runAsync(
-    `UPDATE pending_sms SET status = 'ignored' WHERE id = ?`,
-    [id]
-  );
+  await db.runAsync(`UPDATE pending_sms SET status = 'ignored' WHERE id = ?`, [id]);
 }
 
 export async function updatePending(
@@ -86,8 +69,5 @@ export async function updatePending(
   }
   if (!fields.length) return;
   values.push(id);
-  await db.runAsync(
-    `UPDATE pending_sms SET ${fields.join(', ')} WHERE id = ?`,
-    values
-  );
+  await db.runAsync(`UPDATE pending_sms SET ${fields.join(', ')} WHERE id = ?`, values);
 }

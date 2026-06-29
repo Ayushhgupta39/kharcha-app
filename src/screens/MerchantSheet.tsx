@@ -36,11 +36,11 @@ export function MerchantSheet({ merchant, txs, onBack, onOpenTx }: Props) {
           alignItems: 'center',
           justifyContent: 'space-between',
         }}>
-        <Pressable
-          onPress={onBack}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Pressable onPress={onBack} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Icon name="arrow-l" size={18} color={C.text} />
-          <T mono style={{ fontSize: 11, letterSpacing: 1.2 }}>BACK</T>
+          <T mono style={{ fontSize: 11, letterSpacing: 1.2 }}>
+            BACK
+          </T>
         </Pressable>
         <T mono color={C.text3} style={{ fontSize: 10, letterSpacing: 1.3 }}>
           {txs.length} TXNS
@@ -62,12 +62,20 @@ export function MerchantSheet({ merchant, txs, onBack, onOpenTx }: Props) {
         </T>
         <View style={{ flexDirection: 'row', gap: 24 }}>
           <View>
-            <T mono color={C.text3} style={{ fontSize: 10, letterSpacing: 1, marginBottom: 2 }}>TOTAL</T>
-            <T mono style={{ fontSize: 20, letterSpacing: -0.5 }}>{formatAmount(total)}</T>
+            <T mono color={C.text3} style={{ fontSize: 10, letterSpacing: 1, marginBottom: 2 }}>
+              TOTAL
+            </T>
+            <T mono style={{ fontSize: 20, letterSpacing: -0.5 }}>
+              {formatAmount(total)}
+            </T>
           </View>
           <View>
-            <T mono color={C.text3} style={{ fontSize: 10, letterSpacing: 1, marginBottom: 2 }}>AVG / TXN</T>
-            <T mono style={{ fontSize: 20, letterSpacing: -0.5 }}>{formatAmount(avg)}</T>
+            <T mono color={C.text3} style={{ fontSize: 10, letterSpacing: 1, marginBottom: 2 }}>
+              AVG / TXN
+            </T>
+            <T mono style={{ fontSize: 20, letterSpacing: -0.5 }}>
+              {formatAmount(avg)}
+            </T>
           </View>
         </View>
       </View>
@@ -76,11 +84,7 @@ export function MerchantSheet({ merchant, txs, onBack, onOpenTx }: Props) {
         data={txs}
         keyExtractor={(t) => t.id}
         renderItem={({ item }) => (
-          <TxRow
-            tx={item}
-            onPress={() => onOpenTx(item.id)}
-            customs={customs}
-          />
+          <TxRow tx={item} onPress={() => onOpenTx(item.id)} customs={customs} />
         )}
         ListEmptyComponent={
           <View style={{ padding: 40 }}>

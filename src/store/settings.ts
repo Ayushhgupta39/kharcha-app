@@ -8,6 +8,7 @@ type State = {
   manualApprove: boolean;
   scanDepthDays: number;
   lastScanEpoch: number;
+  defaultAccountId: string | null;
 };
 
 type Actions = {
@@ -18,6 +19,7 @@ type Actions = {
   setManualApprove: (v: boolean) => Promise<void>;
   setScanDepthDays: (d: number) => Promise<void>;
   setLastScan: (ms: number) => Promise<void>;
+  setDefaultAccountId: (id: string | null) => Promise<void>;
 };
 
 export const useSettings = create<State & Actions>((set) => ({
@@ -27,14 +29,16 @@ export const useSettings = create<State & Actions>((set) => ({
   manualApprove: false,
   scanDepthDays: 90,
   lastScanEpoch: 0,
+  defaultAccountId: null,
   async load() {
-    const [onb, sms, auto, approve, depth, ls] = await Promise.all([
+    const [onb, sms, auto, approve, depth, ls, defAcc] = await Promise.all([
       getSetting('onboarded'),
       getSetting('smsEnabled'),
       getSetting('autoCategorise'),
       getSetting('manualApprove'),
       getSetting('scanDepthDays'),
       getSetting('lastScanEpoch'),
+      getSetting('defaultAccountId'),
     ]);
     set({
       onboarded: onb === '1',
@@ -43,6 +47,7 @@ export const useSettings = create<State & Actions>((set) => ({
       manualApprove: approve === '1',
       scanDepthDays: depth ? Number(depth) : 90,
       lastScanEpoch: ls ? Number(ls) : 0,
+      defaultAccountId: defAcc || null,
     });
   },
   async setOnboarded(v) {
@@ -68,5 +73,9 @@ export const useSettings = create<State & Actions>((set) => ({
   async setLastScan(ms) {
     await setSetting('lastScanEpoch', String(ms));
     set({ lastScanEpoch: ms });
+  },
+  async setDefaultAccountId(id) {
+    await setSetting('defaultAccountId', id ?? '');
+    set({ defaultAccountId: id });
   },
 }));

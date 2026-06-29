@@ -11,12 +11,7 @@ type Props = {
   height?: number;
 };
 
-export function MiniBars({
-  days,
-  selectedIdx,
-  onSelect,
-  height = 88,
-}: Props) {
+export function MiniBars({ days, selectedIdx, onSelect, height = 88 }: Props) {
   const max = Math.max(1, ...days.map((d) => d.total));
   return (
     <View
@@ -44,11 +39,7 @@ export function MiniBars({
               <View
                 style={{
                   height: h,
-                  backgroundColor: selected
-                    ? C.accent
-                    : d.total > 0
-                      ? C.text4
-                      : C.border2,
+                  backgroundColor: selected ? C.accent : d.total > 0 ? C.text4 : C.border2,
                   borderRadius: 1,
                 }}
               />

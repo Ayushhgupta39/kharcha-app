@@ -3,27 +3,26 @@ import { getDb } from './index';
 
 export type TxSource = 'sms' | 'manual';
 export type TxType = 'debit' | 'credit';
+export type TxKind = 'expense' | 'income' | 'invest' | 'lent';
 
 export type Transaction = {
   id: string;
   amount: number; // paise
   type: TxType;
+  kind: TxKind;
   merchant: string;
   category: string;
   date: string; // ISO
   source: TxSource;
   bank?: string | null;
+  account_id?: string | null;
   note?: string | null;
   raw_sms?: string | null;
   sms_hash?: string | null;
 };
 
 function genId(): string {
-  return (
-    Date.now().toString(36) +
-    '-' +
-    Math.random().toString(36).slice(2, 10)
-  );
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
 }
 
 export async function insertTransaction(
@@ -33,17 +32,19 @@ export async function insertTransaction(
   const id = tx.id ?? genId();
   try {
     await db.runAsync(
-      `INSERT INTO transactions (id, amount, type, merchant, category, date, source, bank, note, raw_sms, sms_hash)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO transactions (id, amount, type, kind, merchant, category, date, source, bank, account_id, note, raw_sms, sms_hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         tx.amount,
         tx.type ?? 'debit',
+        tx.kind ?? 'expense',
         tx.merchant,
         tx.category,
         tx.date,
         tx.source,
         tx.bank ?? null,
+        tx.account_id ?? null,
         tx.note ?? null,
         tx.raw_sms ?? null,
         tx.sms_hash ?? null,
@@ -71,10 +72,7 @@ export async function updateTransaction(
   }
   if (!fields.length) return;
   values.push(id);
-  await db.runAsync(
-    `UPDATE transactions SET ${fields.join(', ')} WHERE id = ?`,
-    values
-  );
+  await db.runAsync(`UPDATE transactions SET ${fields.join(', ')} WHERE id = ?`, values);
 }
 
 export async function deleteTransaction(id: string): Promise<void> {
@@ -82,15 +80,18 @@ export async function deleteTransaction(id: string): Promise<void> {
   await db.runAsync(`DELETE FROM transactions WHERE id = ?`, [id]);
 }
 
-export async function listTransactions(opts: {
-  from?: string;
-  to?: string;
-  category?: string;
-  source?: TxSource;
-  bank?: string;
-  search?: string;
-  limit?: number;
-} = {}): Promise<Transaction[]> {
+export async function listTransactions(
+  opts: {
+    from?: string;
+    to?: string;
+    category?: string;
+    source?: TxSource;
+    bank?: string;
+    account_id?: string;
+    search?: string;
+    limit?: number;
+  } = {}
+): Promise<Transaction[]> {
   const db = await getDb();
   const where: string[] = [];
   const values: SQLiteBindValue[] = [];
@@ -114,6 +115,10 @@ export async function listTransactions(opts: {
     where.push('bank = ?');
     values.push(opts.bank);
   }
+  if (opts.account_id) {
+    where.push('account_id = ?');
+    values.push(opts.account_id);
+  }
   if (opts.search) {
     where.push('LOWER(merchant) LIKE ?');
     values.push('%' + opts.search.toLowerCase() + '%');
@@ -126,10 +131,9 @@ export async function listTransactions(opts: {
 
 export async function getTransaction(id: string): Promise<Transaction | null> {
   const db = await getDb();
-  const row = (await db.getFirstAsync(
-    `SELECT * FROM transactions WHERE id = ?`,
-    [id]
-  )) as Transaction | null;
+  const row = (await db.getFirstAsync(`SELECT * FROM transactions WHERE id = ?`, [
+    id,
+  ])) as Transaction | null;
   return row;
 }
 
@@ -171,6 +175,63 @@ export async function sumByDay(
      GROUP BY day ORDER BY day ASC`,
     [from, to]
   )) as { day: string; total: number }[];
+}
+
+export async function sumByKind(
+  from?: string,
+  to?: string,
+  account_id?: string
+): Promise<{ kind: string; total: number }[]> {
+  const db = await getDb();
+  const where: string[] = [`category != 'transfer'`];
+  const values: SQLiteBindValue[] = [];
+  if (from) {
+    where.push('date >= ?');
+    values.push(from);
+  }
+  if (to) {
+    where.push('date <= ?');
+    values.push(to);
+  }
+  if (account_id) {
+    where.push('account_id = ?');
+    values.push(account_id);
+  }
+  return (await db.getAllAsync(
+    `SELECT kind, SUM(amount) as total FROM transactions
+     WHERE ${where.join(' AND ')}
+     GROUP BY kind`,
+    values
+  )) as { kind: string; total: number }[];
+}
+
+export async function sumByCategoryKind(
+  kind: string,
+  from?: string,
+  to?: string,
+  account_id?: string
+): Promise<{ category: string; total: number }[]> {
+  const db = await getDb();
+  const where: string[] = [`category != 'transfer'`, 'kind = ?'];
+  const values: SQLiteBindValue[] = [kind];
+  if (from) {
+    where.push('date >= ?');
+    values.push(from);
+  }
+  if (to) {
+    where.push('date <= ?');
+    values.push(to);
+  }
+  if (account_id) {
+    where.push('account_id = ?');
+    values.push(account_id);
+  }
+  return (await db.getAllAsync(
+    `SELECT category, SUM(amount) as total FROM transactions
+     WHERE ${where.join(' AND ')}
+     GROUP BY category ORDER BY total DESC`,
+    values
+  )) as { category: string; total: number }[];
 }
 
 export async function getDistinctBanks(): Promise<string[]> {

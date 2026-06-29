@@ -1,11 +1,5 @@
 import { useMemo, useState } from 'react';
-import {
-  Modal,
-  Pressable,
-  ScrollView,
-  View,
-  StyleSheet,
-} from 'react-native';
+import { Modal, Pressable, ScrollView, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { T, Tag } from '../components/Text';
 import { Icon } from '../components/Icon';
@@ -46,16 +40,11 @@ export function PendingSheet({ visible, onClose }: Props) {
       onRequestClose={onClose}
       statusBarTranslucent>
       <View style={styles.backdrop}>
-        <Pressable
-          style={{ height: 80 + insets.top }}
-          onPress={onClose}
-        />
+        <Pressable style={{ height: 80 + insets.top }} onPress={onClose} />
         <View style={[styles.panel, { paddingBottom: insets.bottom }]}>
           <View style={styles.header}>
             <T mono weight="600" style={{ fontSize: 11, letterSpacing: 1.4 }}>
-              {current
-                ? `PENDING · ${idx + 1} OF ${total}`
-                : 'PENDING SMS'}
+              {current ? `PENDING · ${idx + 1} OF ${total}` : 'PENDING SMS'}
             </T>
             <Pressable onPress={onClose}>
               <Icon name="x" size={18} color={C.text2} />
@@ -77,10 +66,7 @@ export function PendingSheet({ visible, onClose }: Props) {
                 <View style={styles.smsBox}>
                   <View style={styles.smsHeader}>
                     <Icon name="sms" size={14} color={C.text3} />
-                    <T
-                      mono
-                      color={C.text3}
-                      style={{ fontSize: 10, letterSpacing: 1.2 }}>
+                    <T mono color={C.text3} style={{ fontSize: 10, letterSpacing: 1.2 }}>
                       INBOUND {current.bank ? '· ' + current.bank : ''}
                     </T>
                     <View style={{ flex: 1 }} />
@@ -89,10 +75,7 @@ export function PendingSheet({ visible, onClose }: Props) {
                     </T>
                   </View>
                   <View style={{ padding: 14 }}>
-                    <HighlightedSms
-                      text={current.raw_sms}
-                      merchant={current.merchant}
-                    />
+                    <HighlightedSms text={current.raw_sms} merchant={current.merchant} />
                   </View>
                 </View>
 
@@ -100,10 +83,7 @@ export function PendingSheet({ visible, onClose }: Props) {
                 <View style={styles.parsedRow}>
                   <Tag>PARSED</Tag>
                   <View style={{ flex: 1, height: 1, backgroundColor: C.border }} />
-                  <T
-                    mono
-                    color={C.accent}
-                    style={{ fontSize: 10, letterSpacing: 1.2 }}>
+                  <T mono color={C.accent} style={{ fontSize: 10, letterSpacing: 1.2 }}>
                     ● READY
                   </T>
                 </View>
@@ -125,9 +105,7 @@ export function PendingSheet({ visible, onClose }: Props) {
                       {Math.round(current.amount / 100).toLocaleString('en-IN')}
                     </T>
                   </View>
-                  <T style={{ fontSize: 14, color: C.text, marginTop: 8 }}>
-                    {current.merchant}
-                  </T>
+                  <T style={{ fontSize: 14, color: C.text, marginTop: 8 }}>{current.merchant}</T>
 
                   <View style={styles.divider} />
 
@@ -138,24 +116,12 @@ export function PendingSheet({ visible, onClose }: Props) {
                     }}>
                     <Tag>CATEGORY</Tag>
                     <View style={{ flex: 1 }} />
-                    <Pressable
-                      onPress={() => setPickCat((v) => !v)}
-                      style={styles.catBtn}>
-                      <CategoryGlyph
-                        category={current.category}
-                        size={18}
-                        customs={customs}
-                      />
+                    <Pressable onPress={() => setPickCat((v) => !v)} style={styles.catBtn}>
+                      <CategoryGlyph category={current.category} size={18} customs={customs} />
                       <T mono style={{ fontSize: 11 }}>
-                        {getCategory(current.category, customs)
-                          .label.split(' ')[0]
-                          .toUpperCase()}
+                        {getCategory(current.category, customs).label.split(' ')[0].toUpperCase()}
                       </T>
-                      <Icon
-                        name={pickCat ? 'chevron-d' : 'chevron-r'}
-                        size={10}
-                        color={C.text3}
-                      />
+                      <Icon name={pickCat ? 'chevron-d' : 'chevron-r'} size={10} color={C.text3} />
                     </Pressable>
                   </View>
 
@@ -176,9 +142,7 @@ export function PendingSheet({ visible, onClose }: Props) {
                               styles.catCell,
                               {
                                 borderColor: active ? C.accent : C.border2,
-                                backgroundColor: active
-                                  ? C.accentGlow
-                                  : C.surface,
+                                backgroundColor: active ? C.accentGlow : C.surface,
                               },
                             ]}>
                             <CategoryGlyph
@@ -187,9 +151,7 @@ export function PendingSheet({ visible, onClose }: Props) {
                               active={active}
                               customs={customs}
                             />
-                            <T style={{ fontSize: 11 }}>
-                              {c.label.split(' ')[0]}
-                            </T>
+                            <T style={{ fontSize: 11 }}>{c.label.split(' ')[0]}</T>
                           </Pressable>
                         );
                       })}
@@ -240,25 +202,16 @@ function EmptyState() {
         <Icon name="check" size={26} color={C.accent} />
       </View>
       <T style={{ fontSize: 18, color: C.text, marginTop: 16 }}>Inbox clear</T>
-      <T
-        mono
-        color={C.text3}
-        style={{ fontSize: 11, letterSpacing: 1.2, marginTop: 6 }}>
+      <T mono color={C.text3} style={{ fontSize: 11, letterSpacing: 1.2, marginTop: 6 }}>
         ALL MESSAGES PROCESSED
       </T>
     </View>
   );
 }
 
-function HighlightedSms({
-  text,
-  merchant,
-}: {
-  text: string;
-  merchant: string;
-}) {
+function HighlightedSms({ text, merchant }: { text: string; merchant: string }) {
   const parts = useMemo(() => {
-    const out: Array<{ k: string; hi: boolean; i: number }> = [];
+    const out: { k: string; hi: boolean; i: number }[] = [];
     const amountRe = /(?:Rs\.?|INR|₹)\s*[\d,]+(?:\.\d{1,2})?/gi;
     const merchRe = merchant ? new RegExp(escape(merchant), 'gi') : null;
     const tokens: { start: number; end: number }[] = [];
@@ -276,21 +229,16 @@ function HighlightedSms({
     let key = 0;
     for (const t of tokens) {
       if (t.start < cursor) continue;
-      if (t.start > cursor)
-        out.push({ k: text.slice(cursor, t.start), hi: false, i: key++ });
+      if (t.start > cursor) out.push({ k: text.slice(cursor, t.start), hi: false, i: key++ });
       out.push({ k: text.slice(t.start, t.end), hi: true, i: key++ });
       cursor = t.end;
     }
-    if (cursor < text.length)
-      out.push({ k: text.slice(cursor), hi: false, i: key++ });
+    if (cursor < text.length) out.push({ k: text.slice(cursor), hi: false, i: key++ });
     return out;
   }, [text, merchant]);
 
   return (
-    <T
-      mono
-      color={C.text2}
-      style={{ fontSize: 12, lineHeight: 18 }}>
+    <T mono color={C.text2} style={{ fontSize: 12, lineHeight: 18 }}>
       {parts.map((p) =>
         p.hi ? (
           <T
@@ -305,11 +253,7 @@ function HighlightedSms({
             {p.k}
           </T>
         ) : (
-          <T
-            key={p.i}
-            mono
-            color={C.text2}
-            style={{ fontSize: 12, lineHeight: 18 }}>
+          <T key={p.i} mono color={C.text2} style={{ fontSize: 12, lineHeight: 18 }}>
             {p.k}
           </T>
         )

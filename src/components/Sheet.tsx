@@ -12,13 +12,7 @@ type Props = {
   topOffset?: number;
 };
 
-export function Sheet({
-  visible,
-  title,
-  onClose,
-  children,
-  topOffset = 80,
-}: Props) {
+export function Sheet({ visible, title, onClose, children, topOffset = 80 }: Props) {
   const insets = useSafeAreaInsets();
   return (
     <Modal
@@ -29,16 +23,9 @@ export function Sheet({
       statusBarTranslucent>
       <View style={styles.backdrop}>
         <Pressable style={{ height: topOffset + insets.top }} onPress={onClose} />
-        <View
-          style={[
-            styles.panel,
-            { paddingBottom: insets.bottom },
-          ]}>
+        <View style={[styles.panel, { paddingBottom: insets.bottom }]}>
           <View style={styles.header}>
-            <T
-              mono
-              weight="600"
-              style={{ fontSize: 11, letterSpacing: 1.4 }}>
+            <T mono weight="600" style={{ fontSize: 11, letterSpacing: 1.4 }}>
               {title}
             </T>
             <Pressable onPress={onClose}>

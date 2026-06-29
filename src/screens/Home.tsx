@@ -1,13 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, View, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  endOfDay,
-  endOfMonth,
-  format,
-  startOfDay,
-  startOfMonth,
-} from 'date-fns';
+import { endOfDay, endOfMonth, format, startOfDay, startOfMonth } from 'date-fns';
 import { T, Tag } from '../components/Text';
 import { Icon } from '../components/Icon';
 import { TxRow } from '../components/TxRow';
@@ -24,9 +18,10 @@ type Props = {
   onOpenTx: (id: string) => void;
   onOpenPending: () => void;
   onGoTxns: () => void;
+  onOpenSettings: () => void;
 };
 
-export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
+export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns, onOpenSettings }: Props) {
   const insets = useSafeAreaInsets();
   const txs = useTransactions((s) => s.transactions);
   const pendingCount = usePending((s) => s.count);
@@ -59,9 +54,7 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
     const yStart = startOfDay(yest).toISOString();
     const yEnd = endOfDay(yest).toISOString();
 
-    const inMonth = txs.filter(
-      (t) => t.date >= monthStart && t.date <= monthEnd
-    );
+    const inMonth = txs.filter((t) => t.date >= monthStart && t.date <= monthEnd);
     const inMonthDebits = inMonth.filter((t) => t.type !== 'credit' && t.category !== 'transfer');
     const inMonthCredits = inMonth.filter((t) => t.type === 'credit');
     const todayDebits = inMonthDebits.filter((t) => t.date >= todayStart && t.date <= todayEndIso);
@@ -75,8 +68,12 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
       const d = new Date(t.date);
       return d.getFullYear() === year && d.getMonth() + 1 === month && d.getDate() === selectedDay;
     });
-    const selectedDayDebit = selectedDayTxs.filter((t) => t.type !== 'credit' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
-    const selectedDayCredit = selectedDayTxs.filter((t) => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
+    const selectedDayDebit = selectedDayTxs
+      .filter((t) => t.type !== 'credit' && t.category !== 'transfer')
+      .reduce((s, t) => s + t.amount, 0);
+    const selectedDayCredit = selectedDayTxs
+      .filter((t) => t.type === 'credit')
+      .reduce((s, t) => s + t.amount, 0);
     return {
       todayTotal,
       monthExpense,
@@ -91,14 +88,10 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
 
   const overallBudget = budgets.find((b) => b.kind === 'overall');
   const budgetAmount = overallBudget?.amount ?? 0;
-  const budgetPct = budgetAmount
-    ? Math.min(100, (monthExpense / budgetAmount) * 100)
-    : 0;
+  const budgetPct = budgetAmount ? Math.min(100, (monthExpense / budgetAmount) * 100) : 0;
   const daysInMonth = new Date(year, month, 0).getDate();
   const daysLeft = Math.max(1, daysInMonth - todayDay);
-  const dailyBurn = budgetAmount
-    ? Math.max(0, (budgetAmount - monthExpense) / daysLeft)
-    : 0;
+  const dailyBurn = budgetAmount ? Math.max(0, (budgetAmount - monthExpense) / daysLeft) : 0;
 
   const deltaDiff = todayTotal - yesterdayTotal;
   const deltaColor = deltaDiff <= 0 ? C.accent : C.danger;
@@ -119,25 +112,26 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
             KHARCHA
           </T>
         </View>
-        <Pressable onPress={onOpenPending} style={styles.pendingBtn}>
-          <Icon name="bell" size={14} color={C.text2} />
-          {pendingCount > 0 ? (
-            <>
-              <T
-                mono
-                weight="600"
-                color={C.accent}
-                style={{ fontSize: 10 }}>
-                {pendingCount} PENDING
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Pressable onPress={onOpenPending} style={styles.pendingBtn}>
+            <Icon name="bell" size={14} color={C.text2} />
+            {pendingCount > 0 ? (
+              <>
+                <T mono weight="600" color={C.accent} style={{ fontSize: 10 }}>
+                  {pendingCount} PENDING
+                </T>
+                <View style={styles.pulseDot} />
+              </>
+            ) : (
+              <T mono color={C.text3} style={{ fontSize: 10 }}>
+                ALL CLEAR
               </T>
-              <View style={styles.pulseDot} />
-            </>
-          ) : (
-            <T mono color={C.text3} style={{ fontSize: 10 }}>
-              ALL CLEAR
-            </T>
-          )}
-        </Pressable>
+            )}
+          </Pressable>
+          <Pressable onPress={onOpenSettings} style={styles.gearBtn}>
+            <Icon name="settings" size={15} color={C.text2} />
+          </Pressable>
+        </View>
       </View>
 
       <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 }}>
@@ -165,16 +159,8 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
         </T>
         <View style={styles.heroFoot}>
           {selectedDay === todayDay && yesterdayTotal > 0 ? (
-            <View
-              style={[
-                styles.deltaPill,
-                { borderColor: deltaColor },
-              ]}>
-              <T
-                mono
-                weight="600"
-                color={deltaColor}
-                style={{ fontSize: 10 }}>
+            <View style={[styles.deltaPill, { borderColor: deltaColor }]}>
+              <T mono weight="600" color={deltaColor} style={{ fontSize: 10 }}>
                 {deltaDiff > 0 ? '+' : deltaDiff < 0 ? '−' : ''}
                 {formatAmountCompact(Math.abs(deltaDiff))} VS YESTERDAY
               </T>
@@ -189,9 +175,7 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
       {budgetAmount > 0 ? (
         <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
           <View style={styles.budgetMeta}>
-            <Tag>
-              {format(now, 'MMMM').toUpperCase()} BUDGET
-            </Tag>
+            <Tag>{format(now, 'MMMM').toUpperCase()} BUDGET</Tag>
             <T mono style={{ fontSize: 11, color: C.text2 }}>
               <T mono color={C.text} style={{ fontSize: 11 }}>
                 {formatAmountCompact(monthExpense)}
@@ -258,9 +242,7 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
 
       <View style={{ marginTop: 28 }}>
         <View style={styles.heatHeader}>
-          <Tag>
-            {format(now, 'MMMM').toUpperCase()} · HEAT
-          </Tag>
+          <Tag>{format(now, 'MMMM').toUpperCase()} · HEAT</Tag>
           <T mono color={C.text3} style={{ fontSize: 10 }}>
             TAP A DAY
           </T>
@@ -277,18 +259,11 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
         <View style={{ paddingHorizontal: 20, paddingTop: 14 }}>
           <View style={styles.selBox}>
             <View style={[styles.selHeader, { marginBottom: 0 }]}>
-              <T
-                mono
-                weight="600"
-                style={{ fontSize: 11, letterSpacing: 1 }}>
+              <T mono weight="600" style={{ fontSize: 11, letterSpacing: 1 }}>
                 {format(new Date(year, month - 1, selectedDay), 'MMM').toUpperCase()}{' '}
                 {String(selectedDay).padStart(2, '0')}
                 {selectedDay === todayDay ? (
-                  <T
-                    mono
-                    weight="600"
-                    color={C.accent}
-                    style={{ fontSize: 11, marginLeft: 8 }}>
+                  <T mono weight="600" color={C.accent} style={{ fontSize: 11, marginLeft: 8 }}>
                     {'  '}TODAY
                   </T>
                 ) : null}
@@ -320,13 +295,14 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
       </View>
 
       <LabeledRule
-        label={selectedDay === todayDay ? 'TODAY' : format(new Date(year, month - 1, selectedDay), 'd MMM').toUpperCase()}
+        label={
+          selectedDay === todayDay
+            ? 'TODAY'
+            : format(new Date(year, month - 1, selectedDay), 'd MMM').toUpperCase()
+        }
         right={
           <Pressable onPress={onGoTxns}>
-            <T
-              mono
-              color={C.text2}
-              style={{ fontSize: 10, letterSpacing: 1.2 }}>
+            <T mono color={C.text2} style={{ fontSize: 10, letterSpacing: 1.2 }}>
               ALL →
             </T>
           </Pressable>
@@ -346,14 +322,11 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
             </T>
           </View>
         ) : (
-          selectedDayTxs.slice(0, 4).map((t) => (
-            <TxRow
-              key={t.id}
-              tx={t}
-              onPress={() => onOpenTx(t.id)}
-              customs={customs}
-            />
-          ))
+          selectedDayTxs
+            .slice(0, 4)
+            .map((t) => (
+              <TxRow key={t.id} tx={t} onPress={() => onOpenTx(t.id)} customs={customs} />
+            ))
         )}
       </View>
       <View style={{ height: 24 }} />
@@ -361,7 +334,15 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns }: Props) {
   );
 }
 
-function MonthSummary({ month, income, expense }: { month: string; income: number; expense: number }) {
+function MonthSummary({
+  month,
+  income,
+  expense,
+}: {
+  month: string;
+  income: number;
+  expense: number;
+}) {
   const net = income - expense;
   const isPositive = net >= 0;
   return (
@@ -371,7 +352,12 @@ function MonthSummary({ month, income, expense }: { month: string; income: numbe
           <T mono color={C.text3} style={{ fontSize: 9, letterSpacing: 1, marginBottom: 4 }}>
             {month} INCOME
           </T>
-          <T mono weight="600" style={{ fontSize: 16, color: '#34C759' }} adjustsFontSizeToFit numberOfLines={1}>
+          <T
+            mono
+            weight="600"
+            style={{ fontSize: 16, color: '#34C759' }}
+            adjustsFontSizeToFit
+            numberOfLines={1}>
             +{formatAmountCompact(income)}
           </T>
         </View>
@@ -380,7 +366,12 @@ function MonthSummary({ month, income, expense }: { month: string; income: numbe
           <T mono color={C.text3} style={{ fontSize: 9, letterSpacing: 1, marginBottom: 4 }}>
             {month} SPENT
           </T>
-          <T mono weight="600" style={{ fontSize: 16, color: C.text }} adjustsFontSizeToFit numberOfLines={1}>
+          <T
+            mono
+            weight="600"
+            style={{ fontSize: 16, color: C.text }}
+            adjustsFontSizeToFit
+            numberOfLines={1}>
             {formatAmountCompact(expense)}
           </T>
         </View>
@@ -389,7 +380,12 @@ function MonthSummary({ month, income, expense }: { month: string; income: numbe
           <T mono color={C.text3} style={{ fontSize: 9, letterSpacing: 1, marginBottom: 4 }}>
             {isPositive ? 'SAVED' : 'OVERSPENT'}
           </T>
-          <T mono weight="600" style={{ fontSize: 16, color: isPositive ? '#34C759' : C.danger }} adjustsFontSizeToFit numberOfLines={1}>
+          <T
+            mono
+            weight="600"
+            style={{ fontSize: 16, color: isPositive ? '#34C759' : C.danger }}
+            adjustsFontSizeToFit
+            numberOfLines={1}>
             {formatAmountCompact(Math.abs(net))}
           </T>
         </View>
@@ -456,6 +452,14 @@ const styles = StyleSheet.create({
     height: 6,
     backgroundColor: C.accent,
     borderRadius: 3,
+  },
+  gearBtn: {
+    borderWidth: 1,
+    borderColor: C.border2,
+    padding: 7,
+    borderRadius: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   heroMeta: {
     flexDirection: 'row',

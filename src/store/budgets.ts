@@ -1,10 +1,5 @@
 import { create } from 'zustand';
-import {
-  deleteBudget,
-  listBudgets,
-  upsertBudget,
-  type Budget,
-} from '../db/budgets';
+import { deleteBudget, listBudgets, upsertBudget, type Budget } from '../db/budgets';
 
 type State = {
   budgets: Budget[];

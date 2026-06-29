@@ -14,7 +14,9 @@ export type CategoryKey =
   | 'refund'
   | 'investment'
   | 'rental'
-  | 'income_other';
+  | 'income_other'
+  | 'invest'
+  | 'lent';
 
 export type Category = {
   key: string;
@@ -45,9 +47,18 @@ export const BUILTIN_INCOME_CATEGORIES: Category[] = [
   { key: 'income_other', label: 'Income', glyph: '○', builtin: true },
 ];
 
+// Outflow categories tracked via transaction `kind`, not the income arrays.
+// Invest deducts from income but is reported separately from expenses; Lent is
+// a plain outflow that the user expects back.
+export const BUILTIN_SPECIAL_CATEGORIES: Category[] = [
+  { key: 'invest', label: 'Invest', glyph: '⬡', builtin: true },
+  { key: 'lent', label: 'Lent', glyph: '◇', builtin: true },
+];
+
 export const BUILTIN_CATEGORIES: Category[] = [
   ...BUILTIN_EXPENSE_CATEGORIES,
   ...BUILTIN_INCOME_CATEGORIES,
+  ...BUILTIN_SPECIAL_CATEGORIES,
 ];
 
 export const CATEGORY_BY_KEY: Record<string, Category> = Object.fromEntries(

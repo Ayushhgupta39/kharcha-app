@@ -1,14 +1,7 @@
 import { Text as RNText, type TextProps, StyleSheet } from 'react-native';
 import { C, F } from '../lib/tokens';
 
-type Variant =
-  | 'hero'
-  | 'h1'
-  | 'h2'
-  | 'body'
-  | 'meta'
-  | 'label'
-  | 'micro';
+type Variant = 'hero' | 'h1' | 'h2' | 'body' | 'meta' | 'label' | 'micro';
 
 type Props = TextProps & {
   variant?: Variant;
@@ -71,8 +64,7 @@ export function T({
           fontFamily: fontFamily(mono, weight),
           fontSize: VARIANT_SIZE[variant],
           color,
-          letterSpacing:
-            variant === 'label' || variant === 'micro' ? 1.2 : 0,
+          letterSpacing: variant === 'label' || variant === 'micro' ? 1.2 : 0,
           textTransform: uppercase ? 'uppercase' : undefined,
           includeFontPadding: false,
         },
@@ -84,12 +76,7 @@ export function T({
 }
 
 // Common "tag" style — small, mono, uppercase, letter-spaced
-export function Tag({
-  children,
-  color = C.text3,
-  style,
-  ...rest
-}: TextProps & { color?: string }) {
+export function Tag({ children, color = C.text3, style, ...rest }: TextProps & { color?: string }) {
   return (
     <RNText
       {...rest}

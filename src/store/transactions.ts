@@ -28,9 +28,7 @@ type Actions = {
   refresh: (filters?: Filters) => Promise<void>;
   setFilters: (patch: Partial<Filters>) => Promise<void>;
   clearFilters: () => Promise<void>;
-  add: (
-    tx: Omit<Transaction, 'id'> & { id?: string }
-  ) => Promise<Transaction | null>;
+  add: (tx: Omit<Transaction, 'id'> & { id?: string }) => Promise<Transaction | null>;
   update: (
     id: string,
     patch: Partial<Omit<Transaction, 'id'>>,
