@@ -28,16 +28,18 @@ export type IconName =
   | 'swap'
   | 'wallet'
   | 'card'
-  | 'bank';
+  | 'bank'
+  | 'star';
 
 type Props = {
   name: IconName;
   size?: number;
   color?: string;
   strokeWidth?: number;
+  filled?: boolean;
 };
 
-export function Icon({ name, size = 18, color = '#F5F5F5', strokeWidth = 1.5 }: Props) {
+export function Icon({ name, size = 18, color = '#F5F5F5', strokeWidth = 1.5, filled }: Props) {
   const p = {
     stroke: color,
     strokeWidth,
@@ -228,6 +230,16 @@ export function Icon({ name, size = 18, color = '#F5F5F5', strokeWidth = 1.5 }: 
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24">
           <Path {...p} d="M3 9l9-5 9 5M4 9v8M9 9v8M15 9v8M20 9v8M3 21h18" />
+        </Svg>
+      );
+    case 'star':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24">
+          <Path
+            {...p}
+            fill={filled ? color : 'none'}
+            d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 18l-5.8 3 1.1-6.5L2.6 9.8l6.5-.9z"
+          />
         </Svg>
       );
     default:

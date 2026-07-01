@@ -28,6 +28,18 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
   } catch {
     /* column already exists */
   }
+  try {
+    await db.execAsync(
+      `ALTER TABLE accounts ADD COLUMN opening_balance INTEGER NOT NULL DEFAULT 0`
+    );
+  } catch {
+    /* column already exists (or table not created yet — CREATE below covers it) */
+  }
+  try {
+    await db.execAsync(`ALTER TABLE accounts ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0`);
+  } catch {
+    /* column already exists */
+  }
 
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
@@ -100,12 +112,14 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
     );
 
     CREATE TABLE IF NOT EXISTS accounts (
-      id            TEXT PRIMARY KEY,
-      name          TEXT NOT NULL,
-      type          TEXT NOT NULL DEFAULT 'bank',
-      account_no    TEXT,
-      notes         TEXT,
-      created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+      id               TEXT PRIMARY KEY,
+      name             TEXT NOT NULL,
+      type             TEXT NOT NULL DEFAULT 'bank',
+      account_no       TEXT,
+      notes            TEXT,
+      opening_balance  INTEGER NOT NULL DEFAULT 0,
+      favorite         INTEGER NOT NULL DEFAULT 0,
+      created_at       TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
 

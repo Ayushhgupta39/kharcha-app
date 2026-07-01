@@ -9,31 +9,68 @@ import { LabeledRule } from '../components/LabeledRule';
 import { HeatmapMonth } from '../components/Heatmap';
 import { C } from '../lib/tokens';
 import { formatAmount, formatAmountCompact } from '../lib/format';
+import { accountBalance } from '../lib/portfolio';
 import { useTransactions } from '../store/transactions';
 import { usePending } from '../store/pending';
 import { useBudgets } from '../store/budgets';
 import { useCategories } from '../store/categories';
+import { useAccounts } from '../store/accounts';
+import type { Account } from '../db/accounts';
 
 type Props = {
   onOpenTx: (id: string) => void;
   onOpenPending: () => void;
   onGoTxns: () => void;
+  onGoPortfolio: () => void;
+  onOpenAccount: (a: Account) => void;
   onOpenSettings: () => void;
 };
 
-export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns, onOpenSettings }: Props) {
+export function HomeScreen({
+  onOpenTx,
+  onOpenPending,
+  onGoTxns,
+  onGoPortfolio,
+  onOpenAccount,
+  onOpenSettings,
+}: Props) {
   const insets = useSafeAreaInsets();
   const txs = useTransactions((s) => s.transactions);
   const pendingCount = usePending((s) => s.count);
   const budgets = useBudgets((s) => s.budgets);
   const customs = useCategories((s) => s.customs);
+  const accounts = useAccounts((s) => s.accounts);
+
+  // Show favorited accounts on Home; if none are starred, fall back to the
+  // first two added so the strip isn't empty once any account exists.
+  const homeAccounts = useMemo(() => {
+    const favs = accounts.filter((a) => a.favorite);
+    return favs.length ? favs : accounts.slice(0, 2);
+  }, [accounts]);
 
   const now = useMemo(() => new Date(), []);
   const todayDay = now.getDate();
   const month = now.getMonth() + 1;
   const year = now.getFullYear();
 
+  // The month shown in the heatmap and its detail box. Defaults to the current
+  // month; the rest of the screen (hero, budget, summary) stays pinned to now.
+  const [viewMonth, setViewMonth] = useState<number>(month);
+  const [viewYear, setViewYear] = useState<number>(year);
+  const isCurrentMonth = viewMonth === month && viewYear === year;
+
   const [selectedDay, setSelectedDay] = useState<number>(todayDay);
+
+  const onChangeMonth = (m: number, y: number) => {
+    setViewMonth(m);
+    setViewYear(y);
+    // Land on today when returning to the current month, else day 1.
+    if (m === month && y === year) {
+      setSelectedDay(todayDay);
+    } else {
+      setSelectedDay(1);
+    }
+  };
 
   const {
     todayTotal,
@@ -64,9 +101,13 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns, onOpenSettings }
     const todayTotal = todayDebits.reduce((s, t) => s + t.amount, 0);
     const yesterdayTotal = yesterdayDebits.reduce((s, t) => s + t.amount, 0);
     const monthAvg = monthExpense / todayDay;
-    const selectedDayTxs = inMonth.filter((t) => {
+    const selectedDayTxs = txs.filter((t) => {
       const d = new Date(t.date);
-      return d.getFullYear() === year && d.getMonth() + 1 === month && d.getDate() === selectedDay;
+      return (
+        d.getFullYear() === viewYear &&
+        d.getMonth() + 1 === viewMonth &&
+        d.getDate() === selectedDay
+      );
     });
     const selectedDayDebit = selectedDayTxs
       .filter((t) => t.type !== 'credit' && t.category !== 'transfer')
@@ -84,7 +125,7 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns, onOpenSettings }
       yesterdayTotal,
       monthAvg,
     };
-  }, [txs, selectedDay, now, month, year, todayDay]);
+  }, [txs, selectedDay, now, todayDay, viewMonth, viewYear]);
 
   const overallBudget = budgets.find((b) => b.kind === 'overall');
   const budgetAmount = overallBudget?.amount ?? 0;
@@ -137,9 +178,9 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns, onOpenSettings }
       <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 }}>
         <View style={styles.heroMeta}>
           <Tag>
-            {selectedDay === todayDay
+            {isCurrentMonth && selectedDay === todayDay
               ? `TODAY · ${format(now, 'd MMM').toUpperCase()}`
-              : format(new Date(year, month - 1, selectedDay), 'd MMM').toUpperCase()}
+              : format(new Date(viewYear, viewMonth - 1, selectedDay), 'd MMM').toUpperCase()}
           </Tag>
           <T mono color={C.text3} style={{ fontSize: 10 }}>
             {selectedDayTxs.length} TXNS
@@ -158,7 +199,7 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns, onOpenSettings }
           {formatAmountCompact(selectedDayDebit)}
         </T>
         <View style={styles.heroFoot}>
-          {selectedDay === todayDay && yesterdayTotal > 0 ? (
+          {isCurrentMonth && selectedDay === todayDay && yesterdayTotal > 0 ? (
             <View style={[styles.deltaPill, { borderColor: deltaColor }]}>
               <T mono weight="600" color={deltaColor} style={{ fontSize: 10 }}>
                 {deltaDiff > 0 ? '+' : deltaDiff < 0 ? '−' : ''}
@@ -240,29 +281,53 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns, onOpenSettings }
         />
       </View>
 
+      {homeAccounts.length > 0 ? (
+        <View style={{ marginTop: 28 }}>
+          <View style={styles.acctHeader}>
+            <Tag>ACCOUNTS</Tag>
+            <Pressable onPress={onGoPortfolio} hitSlop={8}>
+              <T mono color={C.text2} style={{ fontSize: 10, letterSpacing: 1.2 }}>
+                SHOW ALL →
+              </T>
+            </Pressable>
+          </View>
+          <View style={{ paddingHorizontal: 20, gap: 10 }}>
+            {homeAccounts.map((a) => (
+              <AccountCard
+                key={a.id}
+                account={a}
+                balance={accountBalance(a, txs)}
+                onPress={() => onOpenAccount(a)}
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
+
       <View style={{ marginTop: 28 }}>
         <View style={styles.heatHeader}>
-          <Tag>{format(now, 'MMMM').toUpperCase()} · HEAT</Tag>
+          <Tag>{format(new Date(viewYear, viewMonth - 1, 1), 'MMMM').toUpperCase()} · HEAT</Tag>
           <T mono color={C.text3} style={{ fontSize: 10 }}>
             TAP A DAY
           </T>
         </View>
         <HeatmapMonth
-          month={month}
-          year={year}
-          todayDay={todayDay}
+          month={viewMonth}
+          year={viewYear}
+          todayDay={isCurrentMonth ? todayDay : null}
           txs={txs}
           selectedDay={selectedDay}
           onSelectDay={setSelectedDay}
+          onChangeMonth={onChangeMonth}
         />
 
         <View style={{ paddingHorizontal: 20, paddingTop: 14 }}>
           <View style={styles.selBox}>
             <View style={[styles.selHeader, { marginBottom: 0 }]}>
               <T mono weight="600" style={{ fontSize: 11, letterSpacing: 1 }}>
-                {format(new Date(year, month - 1, selectedDay), 'MMM').toUpperCase()}{' '}
+                {format(new Date(viewYear, viewMonth - 1, selectedDay), 'MMM').toUpperCase()}{' '}
                 {String(selectedDay).padStart(2, '0')}
-                {selectedDay === todayDay ? (
+                {isCurrentMonth && selectedDay === todayDay ? (
                   <T mono weight="600" color={C.accent} style={{ fontSize: 11, marginLeft: 8 }}>
                     {'  '}TODAY
                   </T>
@@ -296,9 +361,9 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns, onOpenSettings }
 
       <LabeledRule
         label={
-          selectedDay === todayDay
+          isCurrentMonth && selectedDay === todayDay
             ? 'TODAY'
-            : format(new Date(year, month - 1, selectedDay), 'd MMM').toUpperCase()
+            : format(new Date(viewYear, viewMonth - 1, selectedDay), 'd MMM').toUpperCase()
         }
         right={
           <Pressable onPress={onGoTxns}>
@@ -333,6 +398,72 @@ export function HomeScreen({ onOpenTx, onOpenPending, onGoTxns, onOpenSettings }
     </ScrollView>
   );
 }
+
+function AccountCard({
+  account,
+  balance,
+  onPress,
+}: {
+  account: Account;
+  balance: number;
+  onPress: () => void;
+}) {
+  const [pressed, setPressed] = useState(false);
+  const negative = balance < 0;
+  return (
+    <Pressable
+      onPress={onPress}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      style={{ ...acctStyles.card, backgroundColor: pressed ? C.surface2 : C.surface }}>
+      <View style={acctStyles.glyph}>
+        <Icon name={account.type === 'card' ? 'card' : 'bank'} size={16} color={C.text2} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <T weight="500" style={{ fontSize: 13 }} numberOfLines={1}>
+            {account.name}
+          </T>
+          {account.favorite ? <Icon name="star" size={11} color={C.accent} filled /> : null}
+        </View>
+        <T mono color={C.text3} style={{ fontSize: 9, letterSpacing: 1, marginTop: 3 }}>
+          {account.type === 'card' ? 'CARD' : 'BANK'}
+        </T>
+      </View>
+      <View style={{ alignItems: 'flex-end' }}>
+        <T mono weight="600" style={{ fontSize: 15, color: negative ? C.danger : C.text }}>
+          {negative ? '−' : ''}
+          {formatAmountCompact(Math.abs(balance))}
+        </T>
+        <T mono color={C.text4} style={{ fontSize: 9, marginTop: 2, letterSpacing: 1 }}>
+          BALANCE
+        </T>
+      </View>
+    </Pressable>
+  );
+}
+
+const acctStyles = StyleSheet.create({
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 2,
+    padding: 14,
+  },
+  glyph: {
+    width: 34,
+    height: 34,
+    borderWidth: 1,
+    borderColor: C.border2,
+    borderRadius: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.bg,
+  },
+});
 
 function MonthSummary({
   month,
@@ -503,6 +634,13 @@ const styles = StyleSheet.create({
     borderColor: C.border,
     padding: 14,
     borderRadius: 2,
+  },
+  acctHeader: {
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   heatHeader: {
     paddingHorizontal: 20,

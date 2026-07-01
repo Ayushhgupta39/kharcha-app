@@ -1,4 +1,5 @@
 import type { Transaction } from '../db/transactions';
+import type { Account } from '../db/accounts';
 
 export type KindTotals = {
   income: number;
@@ -41,4 +42,13 @@ export function sumKinds(txs: Transaction[]): KindTotals {
 
 export function inRange(t: Transaction, fromIso: string, toIso: string): boolean {
   return t.date >= fromIso && t.date <= toIso;
+}
+
+// Live balance = opening balance the user entered, plus the net of every
+// transaction linked to the account. Income adds; expense, invest and lent
+// (all real outflows) subtract. Recomputed from txns so it never drifts.
+export function accountBalance(account: Account, allTxs: Transaction[]): number {
+  const linked = allTxs.filter((t) => t.account_id === account.id);
+  const { income, expense, invest, lent } = sumKinds(linked);
+  return account.opening_balance + income - expense - invest - lent;
 }

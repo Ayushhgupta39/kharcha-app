@@ -213,6 +213,8 @@ function Root() {
             onOpenTx={setOpenTxId}
             onOpenPending={() => setPendingOpen(true)}
             onGoTxns={() => setTab('txns')}
+            onGoPortfolio={() => setTab('portfolio')}
+            onOpenAccount={setOpenAccount}
             onOpenSettings={() => setSettingsOpen(true)}
           />
         );

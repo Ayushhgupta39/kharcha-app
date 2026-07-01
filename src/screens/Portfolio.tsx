@@ -8,7 +8,7 @@ import { Sheet } from '../components/Sheet';
 import { Button } from '../components/Button';
 import { C, F } from '../lib/tokens';
 import { formatAmountCompact } from '../lib/format';
-import { sumKinds, inRange, type KindTotals } from '../lib/portfolio';
+import { sumKinds, inRange, accountBalance, type KindTotals } from '../lib/portfolio';
 import { useTransactions } from '../store/transactions';
 import { useAccounts } from '../store/accounts';
 import { useSettings } from '../store/settings';
@@ -24,12 +24,14 @@ export function PortfolioScreen({ onOpenAccount, onOpenSettings }: Props) {
   const txs = useTransactions((s) => s.transactions);
   const accounts = useAccounts((s) => s.accounts);
   const addAccount = useAccounts((s) => s.add);
+  const setFav = useAccounts((s) => s.setFav);
   const defaultAccountId = useSettings((s) => s.defaultAccountId);
   const setDefaultAccountId = useSettings((s) => s.setDefaultAccountId);
 
   const [addOpen, setAddOpen] = useState(false);
   const [name, setName] = useState('');
   const [type, setType] = useState<AccountType>('bank');
+  const [balance, setBalance] = useState('');
   const [accountNo, setAccountNo] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -43,7 +45,7 @@ export function PortfolioScreen({ onOpenAccount, onOpenSettings }: Props) {
     [txs, monthStart, monthEnd]
   );
 
-  // Per-account this-month totals, keyed by account_id.
+  // Per-account this-month totals, keyed by account_id (used by the list rows).
   const perAccount = useMemo(() => {
     const map: Record<string, KindTotals> = {};
     for (const a of accounts) {
@@ -54,11 +56,28 @@ export function PortfolioScreen({ onOpenAccount, onOpenSettings }: Props) {
     return map;
   }, [accounts, txs, monthStart, monthEnd]);
 
+  // Live balance per account (opening + linked txns), keyed by account_id.
+  const balances = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const a of accounts) map[a.id] = accountBalance(a, txs);
+    return map;
+  }, [accounts, txs]);
+
   const resetForm = () => {
     setName('');
     setType('bank');
+    setBalance('');
     setAccountNo('');
     setNotes('');
+  };
+
+  // Parse a rupee string ("12,500.50") into integer paise.
+  const parsePaise = (s: string): number | null => {
+    const cleaned = s.replace(/[^0-9.]/g, '');
+    if (!cleaned) return null;
+    const rupees = Number(cleaned);
+    if (!Number.isFinite(rupees)) return null;
+    return Math.round(rupees * 100);
   };
 
   const saveAccount = async () => {
@@ -67,12 +86,22 @@ export function PortfolioScreen({ onOpenAccount, onOpenSettings }: Props) {
       Alert.alert('Name required', 'Give the account a name (e.g. HDFC Savings).');
       return;
     }
+    const paise = parsePaise(balance);
+    if (paise === null) {
+      Alert.alert(
+        'Balance required',
+        'Enter the current balance in this account so it can be kept up to date.'
+      );
+      return;
+    }
     const wasFirst = accounts.length === 0;
     const acc = await addAccount({
       name: n,
       type,
       account_no: accountNo.trim() || null,
       notes: notes.trim() || null,
+      opening_balance: paise,
+      favorite: false,
     });
     setAddOpen(false);
     resetForm();
@@ -103,29 +132,8 @@ export function PortfolioScreen({ onOpenAccount, onOpenSettings }: Props) {
         </Pressable>
       </View>
 
-      {/* All-accounts summary */}
-      <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
-        <T mono style={{ fontSize: 11, color: C.text3, letterSpacing: 1, marginBottom: 10 }}>
-          {format(now, 'MMMM').toUpperCase()} · ALL ACCOUNTS
-        </T>
-        <SummaryGrid totals={monthAll} />
-
-        <T
-          mono
-          style={{
-            fontSize: 11,
-            color: C.text3,
-            letterSpacing: 1,
-            marginTop: 22,
-            marginBottom: 10,
-          }}>
-          ALL TIME
-        </T>
-        <SummaryGrid totals={lifetime} />
-      </View>
-
       {/* Accounts */}
-      <View style={styles.accHeader}>
+      <View style={[styles.accHeader, { paddingTop: 8 }]}>
         <Tag>ACCOUNTS</Tag>
         <Pressable
           onPress={() => setAddOpen(true)}
@@ -155,13 +163,35 @@ export function PortfolioScreen({ onOpenAccount, onOpenSettings }: Props) {
               key={a.id}
               account={a}
               totals={perAccount[a.id]}
+              balance={balances[a.id]}
               isDefault={a.id === defaultAccountId}
               onPress={() => onOpenAccount(a)}
-              onMakeDefault={() => setDefaultAccountId(a.id)}
+              onToggleFav={() => setFav(a.id, !a.favorite)}
             />
           ))}
         </View>
       )}
+
+      {/* All-accounts summary */}
+      <View style={{ paddingHorizontal: 20, paddingTop: 28 }}>
+        <T mono style={{ fontSize: 11, color: C.text3, letterSpacing: 1, marginBottom: 10 }}>
+          {format(now, 'MMMM').toUpperCase()} · ALL ACCOUNTS
+        </T>
+        <SummaryGrid totals={monthAll} accounts={accounts} />
+
+        <T
+          mono
+          style={{
+            fontSize: 11,
+            color: C.text3,
+            letterSpacing: 1,
+            marginTop: 22,
+            marginBottom: 10,
+          }}>
+          ALL TIME
+        </T>
+        <SummaryGrid totals={lifetime} accounts={accounts} />
+      </View>
 
       <Sheet
         visible={addOpen}
@@ -218,6 +248,26 @@ export function PortfolioScreen({ onOpenAccount, onOpenSettings }: Props) {
             />
           </View>
           <View>
+            <Tag style={{ marginBottom: 6 }}>CURRENT BALANCE</Tag>
+            <View style={styles.balanceRow}>
+              <T mono color={C.text3} style={{ fontSize: 16 }}>
+                ₹
+              </T>
+              <TextInput
+                value={balance}
+                onChangeText={setBalance}
+                placeholder="0"
+                placeholderTextColor={C.text4}
+                keyboardType="decimal-pad"
+                style={styles.balanceInput}
+                selectionColor={C.accent}
+              />
+            </View>
+            <T mono color={C.text4} style={{ fontSize: 10, marginTop: 6, letterSpacing: 0.3 }}>
+              WE KEEP THIS UPDATED FROM LINKED TRANSACTIONS
+            </T>
+          </View>
+          <View>
             <Tag style={{ marginBottom: 6 }}>ACCOUNT / CARD NO. (OPTIONAL)</Tag>
             <TextInput
               value={accountNo}
@@ -242,8 +292,8 @@ export function PortfolioScreen({ onOpenAccount, onOpenSettings }: Props) {
           <Button
             label="ADD ACCOUNT"
             onPress={saveAccount}
-            disabled={!name.trim()}
-            style={{ marginTop: 4, opacity: name.trim() ? 1 : 0.35 }}
+            disabled={!name.trim() || !balance.trim()}
+            style={{ marginTop: 4, opacity: name.trim() && balance.trim() ? 1 : 0.35 }}
           />
         </ScrollView>
       </Sheet>
@@ -251,10 +301,24 @@ export function PortfolioScreen({ onOpenAccount, onOpenSettings }: Props) {
   );
 }
 
-function SummaryGrid({ totals }: { totals: KindTotals }) {
+function SummaryGrid({ totals, accounts }: { totals: KindTotals; accounts?: Account[] }) {
   const savedPositive = totals.saved >= 0;
   return (
     <View style={styles.summaryWrap}>
+      {accounts && accounts.length ? (
+        <>
+          {accounts.map((a) => (
+            <View key={a.id} style={styles.acctLine}>
+              <Icon name={a.type === 'card' ? 'card' : 'bank'} size={13} color={C.text3} />
+              <T style={{ fontSize: 12, flex: 1 }} numberOfLines={1}>
+                {a.name}
+              </T>
+            </View>
+          ))}
+          <View style={styles.hDivider} />
+        </>
+      ) : null}
+
       <View style={styles.summaryRow}>
         <Cell label="INCOME" value={'+' + formatAmountCompact(totals.income)} color="#34C759" />
         <View style={styles.vDivider} />
@@ -305,18 +369,21 @@ function Cell({
 function AccountRow({
   account,
   totals,
+  balance,
   isDefault,
   onPress,
-  onMakeDefault,
+  onToggleFav,
 }: {
   account: Account;
   totals?: KindTotals;
+  balance: number;
   isDefault: boolean;
   onPress: () => void;
-  onMakeDefault: () => void;
+  onToggleFav: () => void;
 }) {
   const [pressed, setPressed] = useState(false);
   const t = totals ?? { income: 0, expense: 0, invest: 0, lent: 0, saved: 0 };
+  const negative = balance < 0;
   return (
     <Pressable
       onPress={onPress}
@@ -344,28 +411,26 @@ function AccountRow({
         </View>
         <T mono color={C.text3} style={{ fontSize: 10, letterSpacing: 0.5, marginTop: 3 }}>
           {account.type === 'card' ? 'CARD' : 'BANK'}
-          {account.account_no ? ` · ${account.account_no}` : ''}
+          {t.expense > 0 ? ` · ${formatAmountCompact(t.expense)} SPENT` : ''}
         </T>
       </View>
       <View style={{ alignItems: 'flex-end' }}>
-        <T mono style={{ fontSize: 14, color: C.text }}>
-          {formatAmountCompact(t.expense)}
+        <T mono weight="600" style={{ fontSize: 15, color: negative ? C.danger : C.text }}>
+          {negative ? '−' : ''}
+          {formatAmountCompact(Math.abs(balance))}
         </T>
-        {t.income > 0 ? (
-          <T mono style={{ fontSize: 10, color: '#34C759', marginTop: 2 }}>
-            +{formatAmountCompact(t.income)}
-          </T>
-        ) : (
-          <T mono color={C.text4} style={{ fontSize: 9, marginTop: 2, letterSpacing: 1 }}>
-            THIS MONTH
-          </T>
-        )}
+        <T mono color={C.text4} style={{ fontSize: 9, marginTop: 2, letterSpacing: 1 }}>
+          BALANCE
+        </T>
       </View>
-      {!isDefault ? (
-        <Pressable onPress={onMakeDefault} hitSlop={8} style={styles.starBtn}>
-          <Icon name="check" size={13} color={C.text4} />
-        </Pressable>
-      ) : null}
+      <Pressable onPress={onToggleFav} hitSlop={10} style={styles.starBtn}>
+        <Icon
+          name="star"
+          size={15}
+          color={account.favorite ? C.accent : C.text4}
+          filled={account.favorite}
+        />
+      </Pressable>
     </Pressable>
   );
 }
@@ -397,6 +462,12 @@ const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  acctLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 7,
   },
   cell: { flex: 1 },
   vDivider: {
@@ -476,5 +547,22 @@ const styles = StyleSheet.create({
     borderColor: C.border2,
     borderRadius: 2,
     backgroundColor: C.surface,
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: C.border2,
+    borderRadius: 2,
+    backgroundColor: C.surface,
+    paddingHorizontal: 12,
+  },
+  balanceInput: {
+    flex: 1,
+    color: C.text,
+    fontFamily: F.mono,
+    fontSize: 18,
+    paddingVertical: 12,
   },
 });

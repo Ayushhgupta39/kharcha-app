@@ -8,7 +8,7 @@ import { CategoryGlyph } from '../components/CategoryGlyph';
 import { C } from '../lib/tokens';
 import { formatAmount, formatAmountCompact } from '../lib/format';
 import { getCategory } from '../lib/categories';
-import { sumKinds } from '../lib/portfolio';
+import { sumKinds, accountBalance } from '../lib/portfolio';
 import { useTransactions } from '../store/transactions';
 import { useAccounts } from '../store/accounts';
 import { useCategories } from '../store/categories';
@@ -21,14 +21,22 @@ type Props = {
   onOpenTx: (id: string) => void;
 };
 
-export function AccountDetailScreen({ account, onBack, onOpenTx }: Props) {
+export function AccountDetailScreen({ account: accountProp, onBack, onOpenTx }: Props) {
   const insets = useSafeAreaInsets();
   const allTxs = useTransactions((s) => s.transactions);
   const customs = useCategories((s) => s.customs);
+  const accounts = useAccounts((s) => s.accounts);
   const removeAccount = useAccounts((s) => s.remove);
+  const setFav = useAccounts((s) => s.setFav);
   const refreshTxs = useTransactions((s) => s.refresh);
   const defaultAccountId = useSettings((s) => s.defaultAccountId);
   const setDefaultAccountId = useSettings((s) => s.setDefaultAccountId);
+
+  // Prefer the live store row so favorite/balance stay current after edits.
+  const account = useMemo(
+    () => accounts.find((a) => a.id === accountProp.id) ?? accountProp,
+    [accounts, accountProp]
+  );
   const isDefault = account.id === defaultAccountId;
 
   const txs = useMemo(
@@ -37,6 +45,7 @@ export function AccountDetailScreen({ account, onBack, onOpenTx }: Props) {
   );
 
   const totals = useMemo(() => sumKinds(txs), [txs]);
+  const balance = useMemo(() => accountBalance(account, allTxs), [account, allTxs]);
 
   // Expense + lent by category (the spend the user controls per account).
   const catBreakdown = useMemo(() => {
@@ -91,9 +100,19 @@ export function AccountDetailScreen({ account, onBack, onOpenTx }: Props) {
             BACK
           </T>
         </Pressable>
-        <Pressable onPress={confirmDelete} hitSlop={8}>
-          <Icon name="trash" size={16} color={C.danger} />
-        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
+          <Pressable onPress={() => setFav(account.id, !account.favorite)} hitSlop={8}>
+            <Icon
+              name="star"
+              size={17}
+              color={account.favorite ? C.accent : C.text3}
+              filled={account.favorite}
+            />
+          </Pressable>
+          <Pressable onPress={confirmDelete} hitSlop={8}>
+            <Icon name="trash" size={16} color={C.danger} />
+          </Pressable>
+        </View>
       </View>
 
       <FlatList
@@ -150,6 +169,27 @@ export function AccountDetailScreen({ account, onBack, onOpenTx }: Props) {
                   </T>
                 ) : null}
               </View>
+            </View>
+
+            {/* Live balance */}
+            <View style={{ paddingHorizontal: 20, paddingTop: 18 }}>
+              <Tag style={{ marginBottom: 6 }}>BALANCE</Tag>
+              <T
+                mono
+                weight="600"
+                style={{
+                  fontSize: 40,
+                  letterSpacing: -1,
+                  color: balance < 0 ? C.danger : C.text,
+                }}
+                adjustsFontSizeToFit
+                numberOfLines={1}>
+                {balance < 0 ? '−' : ''}
+                {formatAmount(Math.abs(balance))}
+              </T>
+              <T mono color={C.text4} style={{ fontSize: 10, marginTop: 4, letterSpacing: 0.5 }}>
+                OPENED AT {formatAmount(account.opening_balance)}
+              </T>
             </View>
 
             {!isDefault ? (
