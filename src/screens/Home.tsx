@@ -9,7 +9,7 @@ import { LabeledRule } from '../components/LabeledRule';
 import { HeatmapMonth } from '../components/Heatmap';
 import { C } from '../lib/tokens';
 import { formatAmount, formatAmountCompact } from '../lib/format';
-import { accountBalance } from '../lib/portfolio';
+import { accountBalance, sumKinds } from '../lib/portfolio';
 import { useTransactions } from '../store/transactions';
 import { usePending } from '../store/pending';
 import { useBudgets } from '../store/budgets';
@@ -75,6 +75,7 @@ export function HomeScreen({
   const {
     todayTotal,
     monthExpense,
+    monthInvest,
     monthIncome,
     selectedDayTxs,
     selectedDayDebit,
@@ -91,15 +92,20 @@ export function HomeScreen({
     const yStart = startOfDay(yest).toISOString();
     const yEnd = endOfDay(yest).toISOString();
 
+    // Spend = expense + lent only; invest is a debit too but reported apart
+    // (mirrors Insights). `sumKinds` drops transfers and classifies by kind.
+    const spendOf = (list: typeof txs) => {
+      const k = sumKinds(list);
+      return k.expense + k.lent;
+    };
+
     const inMonth = txs.filter((t) => t.date >= monthStart && t.date <= monthEnd);
-    const inMonthDebits = inMonth.filter((t) => t.type !== 'credit' && t.category !== 'transfer');
-    const inMonthCredits = inMonth.filter((t) => t.type === 'credit');
-    const todayDebits = inMonthDebits.filter((t) => t.date >= todayStart && t.date <= todayEndIso);
-    const yesterdayDebits = inMonthDebits.filter((t) => t.date >= yStart && t.date <= yEnd);
-    const monthExpense = inMonthDebits.reduce((s, t) => s + t.amount, 0);
-    const monthIncome = inMonthCredits.reduce((s, t) => s + t.amount, 0);
-    const todayTotal = todayDebits.reduce((s, t) => s + t.amount, 0);
-    const yesterdayTotal = yesterdayDebits.reduce((s, t) => s + t.amount, 0);
+    const monthKinds = sumKinds(inMonth);
+    const monthExpense = monthKinds.expense + monthKinds.lent;
+    const monthInvest = monthKinds.invest;
+    const monthIncome = monthKinds.income;
+    const todayTotal = spendOf(inMonth.filter((t) => t.date >= todayStart && t.date <= todayEndIso));
+    const yesterdayTotal = spendOf(inMonth.filter((t) => t.date >= yStart && t.date <= yEnd));
     const monthAvg = monthExpense / todayDay;
     const selectedDayTxs = txs.filter((t) => {
       const d = new Date(t.date);
@@ -109,15 +115,14 @@ export function HomeScreen({
         d.getDate() === selectedDay
       );
     });
-    const selectedDayDebit = selectedDayTxs
-      .filter((t) => t.type !== 'credit' && t.category !== 'transfer')
-      .reduce((s, t) => s + t.amount, 0);
+    const selectedDayDebit = spendOf(selectedDayTxs);
     const selectedDayCredit = selectedDayTxs
       .filter((t) => t.type === 'credit')
       .reduce((s, t) => s + t.amount, 0);
     return {
       todayTotal,
       monthExpense,
+      monthInvest,
       monthIncome,
       selectedDayTxs,
       selectedDayDebit,
@@ -278,6 +283,7 @@ export function HomeScreen({
           month={format(now, 'MMMM').toUpperCase()}
           income={monthIncome}
           expense={monthExpense}
+          invest={monthInvest}
         />
       </View>
 
@@ -469,12 +475,15 @@ function MonthSummary({
   month,
   income,
   expense,
+  invest,
 }: {
   month: string;
   income: number;
   expense: number;
+  invest: number;
 }) {
-  const net = income - expense;
+  // Saved = income minus everything that left the account (spend + invest).
+  const net = income - expense - invest;
   const isPositive = net >= 0;
   return (
     <View style={summaryStyles.wrap}>
@@ -521,6 +530,19 @@ function MonthSummary({
           </T>
         </View>
       </View>
+      {invest > 0 ? (
+        <>
+          <View style={summaryStyles.hDivider} />
+          <View style={summaryStyles.investRow}>
+            <T mono color={C.text3} style={{ fontSize: 9, letterSpacing: 1 }}>
+              {month} INVESTED
+            </T>
+            <T mono weight="600" style={{ fontSize: 13, color: C.accent }}>
+              {formatAmountCompact(invest)}
+            </T>
+          </View>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -545,6 +567,16 @@ const summaryStyles = StyleSheet.create({
     height: 32,
     backgroundColor: C.border,
     marginHorizontal: 12,
+  },
+  hDivider: {
+    height: 1,
+    backgroundColor: C.border,
+    marginVertical: 12,
+  },
+  investRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 });
 

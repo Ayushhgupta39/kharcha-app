@@ -224,9 +224,12 @@ function MonthGrid({
   selectedDay,
   onSelectDay,
 }: GridProps) {
+  // Spend-only heat: income, transfers and invest are excluded so a day's
+  // intensity matches the spend figure shown in the hero (expense + lent).
   const totals: Record<number, number> = {};
   for (const t of txs) {
     if (t.type === 'credit' || t.category === 'transfer') continue;
+    if ((t.kind ?? 'expense') === 'invest') continue;
     const d = new Date(t.date);
     if (d.getMonth() + 1 === month && d.getFullYear() === year) {
       const k = d.getDate();
