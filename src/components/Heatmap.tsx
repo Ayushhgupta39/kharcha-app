@@ -71,22 +71,42 @@ export function HeatmapMonth({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
+  // Guards against a second swipe/tap landing while a slide is mid-flight — an
+  // interrupted animation still fires its callback, which would change the month
+  // without the row being reset and leave translateX stuck off-center (taps then
+  // miss the visible cells until a remount).
+  const animatingRef = useRef(false);
+
   const settle = (delta: number) => {
-    if (gridWidth === 0) return;
+    if (gridWidth === 0 || animatingRef.current) return;
+    animatingRef.current = true;
     // delta = +1 means move to next month: row slides left by one page width.
+    // JS-driven (not native): a native-driven transform leaves Android's touch
+    // hit-testing on the old bounds, so after settling, taps on the recentred
+    // grid were missed until a remount. JS driver keeps layout authoritative.
     Animated.timing(translateX, {
       toValue: -delta * gridWidth,
       duration: SLIDE_MS,
-      useNativeDriver: true,
-    }).start(() => {
+      useNativeDriver: false,
+    }).start(({ finished }) => {
+      animatingRef.current = false;
+      if (!finished) {
+        // Interrupted: snap back to center, don't change the month.
+        translateX.setValue(0);
+        return;
+      }
+      // Recenter the row before swapping the month so the neighbour page that
+      // just slid in becomes the new center with no visual jump — and, crucially,
+      // translateX is 0 regardless of whether the key-effect fires.
+      translateX.setValue(0);
       const [m, y] = shiftMonth(month, year, delta);
-      onChangeMonth(m, y); // key change resets translateX to 0 on the new center
+      onChangeMonth(m, y);
     });
   };
 
   const commit = (delta: number) => {
     if (delta > 0 && !canGoNext) {
-      Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+      Animated.spring(translateX, { toValue: 0, useNativeDriver: false }).start();
       return;
     }
     settle(delta);
@@ -101,8 +121,11 @@ export function HeatmapMonth({
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, g) =>
-        Math.abs(g.dx) > 16 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+        !animatingRef.current &&
+        Math.abs(g.dx) > 16 &&
+        Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
       onPanResponderMove: (_, g) => {
+        if (animatingRef.current) return;
         // Resist dragging toward the future (finger moving left); past follows freely.
         let dx = g.dx;
         if (dx < 0 && !canGoNextRef.current) dx *= 0.25;
@@ -111,10 +134,10 @@ export function HeatmapMonth({
       onPanResponderRelease: (_, g) => {
         if (g.dx <= -SWIPE_THRESHOLD) commitRef.current(1);
         else if (g.dx >= SWIPE_THRESHOLD) commitRef.current(-1);
-        else Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+        else Animated.spring(translateX, { toValue: 0, useNativeDriver: false }).start();
       },
       onPanResponderTerminate: () =>
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start(),
+        Animated.spring(translateX, { toValue: 0, useNativeDriver: false }).start(),
     })
   ).current;
 
