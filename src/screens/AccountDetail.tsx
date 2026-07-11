@@ -1,19 +1,22 @@
-import { useMemo } from 'react';
-import { Alert, FlatList, Pressable, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Alert, FlatList, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { format } from 'date-fns';
 import { T, Tag } from '../components/Text';
 import { Icon } from '../components/Icon';
+import { Sheet } from '../components/Sheet';
+import { Button } from '../components/Button';
 import { TxRow } from '../components/TxRow';
 import { CategoryGlyph } from '../components/CategoryGlyph';
-import { C } from '../lib/tokens';
-import { formatAmount, formatAmountCompact } from '../lib/format';
+import { C, F } from '../lib/tokens';
+import { formatAmount, formatAmountCompact, paiseToRupees } from '../lib/format';
 import { getCategory } from '../lib/categories';
 import { sumKinds, accountBalance } from '../lib/portfolio';
 import { useTransactions } from '../store/transactions';
 import { useAccounts } from '../store/accounts';
 import { useCategories } from '../store/categories';
 import { useSettings } from '../store/settings';
-import type { Account } from '../db/accounts';
+import type { Account, AccountType } from '../db/accounts';
 
 type Props = {
   account: Account;
@@ -27,6 +30,7 @@ export function AccountDetailScreen({ account: accountProp, onBack, onOpenTx }: 
   const customs = useCategories((s) => s.customs);
   const accounts = useAccounts((s) => s.accounts);
   const removeAccount = useAccounts((s) => s.remove);
+  const updateAccount = useAccounts((s) => s.update);
   const setFav = useAccounts((s) => s.setFav);
   const refreshTxs = useTransactions((s) => s.refresh);
   const defaultAccountId = useSettings((s) => s.defaultAccountId);
@@ -46,6 +50,59 @@ export function AccountDetailScreen({ account: accountProp, onBack, onOpenTx }: 
 
   const totals = useMemo(() => sumKinds(txs), [txs]);
   const balance = useMemo(() => accountBalance(account, allTxs), [account, allTxs]);
+
+  // Edit sheet — name, type, account no, notes, and optionally re-set balance.
+  const [editOpen, setEditOpen] = useState(false);
+  const [eName, setEName] = useState('');
+  const [eType, setEType] = useState<AccountType>('bank');
+  const [eBalance, setEBalance] = useState('');
+  const [eBalanceTouched, setEBalanceTouched] = useState(false);
+  const [eAccountNo, setEAccountNo] = useState('');
+  const [eNotes, setENotes] = useState('');
+
+  const openEdit = () => {
+    setEName(account.name);
+    setEType(account.type);
+    setEBalance(String(paiseToRupees(balance)));
+    setEBalanceTouched(false);
+    setEAccountNo(account.account_no ?? '');
+    setENotes(account.notes ?? '');
+    setEditOpen(true);
+  };
+
+  const parsePaise = (s: string): number | null => {
+    const cleaned = s.replace(/[^0-9.]/g, '');
+    if (!cleaned) return null;
+    const rupees = Number(cleaned);
+    if (!Number.isFinite(rupees)) return null;
+    return Math.round(rupees * 100);
+  };
+
+  const saveEdit = async () => {
+    const n = eName.trim();
+    if (!n) {
+      Alert.alert('Name required', 'Give the account a name (e.g. HDFC Savings).');
+      return;
+    }
+    // Only re-anchor the balance if the user actually edited the field.
+    let opening_balance: number | undefined;
+    if (eBalanceTouched) {
+      const paise = parsePaise(eBalance);
+      if (paise === null) {
+        Alert.alert('Balance required', 'Enter a valid current balance.');
+        return;
+      }
+      opening_balance = paise;
+    }
+    await updateAccount(account.id, {
+      name: n,
+      type: eType,
+      account_no: eAccountNo.trim() || null,
+      notes: eNotes.trim() || null,
+      opening_balance,
+    });
+    setEditOpen(false);
+  };
 
   // Expense + lent by category (the spend the user controls per account).
   const catBreakdown = useMemo(() => {
@@ -108,6 +165,9 @@ export function AccountDetailScreen({ account: accountProp, onBack, onOpenTx }: 
               color={account.favorite ? C.accent : C.text3}
               filled={account.favorite}
             />
+          </Pressable>
+          <Pressable onPress={openEdit} hitSlop={8}>
+            <Icon name="edit" size={16} color={C.text} />
           </Pressable>
           <Pressable onPress={confirmDelete} hitSlop={8}>
             <Icon name="trash" size={16} color={C.danger} />
@@ -188,7 +248,10 @@ export function AccountDetailScreen({ account: accountProp, onBack, onOpenTx }: 
                 {formatAmount(Math.abs(balance))}
               </T>
               <T mono color={C.text4} style={{ fontSize: 10, marginTop: 4, letterSpacing: 0.5 }}>
-                OPENED AT {formatAmount(account.opening_balance)}
+                {formatAmount(account.opening_balance)} AS OF{' '}
+                {account.balance_as_of
+                  ? format(new Date(account.balance_as_of), 'd MMM · h:mm a').toUpperCase()
+                  : 'START'}
               </T>
             </View>
 
@@ -312,9 +375,144 @@ export function AccountDetailScreen({ account: accountProp, onBack, onOpenTx }: 
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
       />
+
+      <Sheet visible={editOpen} title="EDIT ACCOUNT" onClose={() => setEditOpen(false)}>
+        <ScrollView
+          contentContainerStyle={{ padding: 20, gap: 16 }}
+          keyboardShouldPersistTaps="handled">
+          <View>
+            <Tag style={{ marginBottom: 8 }}>TYPE</Tag>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              {(['bank', 'card'] as AccountType[]).map((t) => {
+                const active = eType === t;
+                return (
+                  <Pressable
+                    key={t}
+                    onPress={() => setEType(t)}
+                    style={{
+                      flex: 1,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      borderWidth: 1,
+                      borderColor: active ? C.accent : C.border2,
+                      backgroundColor: active ? C.accentGlowFaint : C.surface,
+                      borderRadius: 2,
+                      paddingVertical: 12,
+                    }}>
+                    <Icon
+                      name={t === 'bank' ? 'bank' : 'card'}
+                      size={16}
+                      color={active ? C.accent : C.text2}
+                    />
+                    <T
+                      mono
+                      style={{ fontSize: 12, color: active ? C.accent : C.text2, letterSpacing: 1 }}>
+                      {t === 'bank' ? 'BANK' : 'CARD'}
+                    </T>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <View>
+            <Tag style={{ marginBottom: 6 }}>NAME</Tag>
+            <TextInput
+              value={eName}
+              onChangeText={setEName}
+              placeholder="e.g. HDFC Savings"
+              placeholderTextColor={C.text4}
+              style={editStyles.input}
+              selectionColor={C.accent}
+            />
+          </View>
+          <View>
+            <Tag style={{ marginBottom: 6 }}>CURRENT BALANCE</Tag>
+            <View style={editStyles.balanceRow}>
+              <T mono color={C.text3} style={{ fontSize: 16 }}>
+                ₹
+              </T>
+              <TextInput
+                value={eBalance}
+                onChangeText={(v) => {
+                  setEBalance(v);
+                  setEBalanceTouched(true);
+                }}
+                placeholder="0"
+                placeholderTextColor={C.text4}
+                keyboardType="decimal-pad"
+                style={editStyles.balanceInput}
+                selectionColor={C.accent}
+              />
+            </View>
+            <T mono color={C.text4} style={{ fontSize: 10, marginTop: 6, letterSpacing: 0.3 }}>
+              EDITING RESETS THE BALANCE TO NOW · OLDER TXNS WON&apos;T CHANGE IT
+            </T>
+          </View>
+          <View>
+            <Tag style={{ marginBottom: 6 }}>ACCOUNT / CARD NO. (OPTIONAL)</Tag>
+            <TextInput
+              value={eAccountNo}
+              onChangeText={setEAccountNo}
+              placeholder="last 4 digits or full"
+              placeholderTextColor={C.text4}
+              style={editStyles.input}
+              selectionColor={C.accent}
+            />
+          </View>
+          <View>
+            <Tag style={{ marginBottom: 6 }}>NOTES (OPTIONAL)</Tag>
+            <TextInput
+              value={eNotes}
+              onChangeText={setENotes}
+              placeholder="anything to remember"
+              placeholderTextColor={C.text4}
+              style={editStyles.input}
+              selectionColor={C.accent}
+            />
+          </View>
+          <Button
+            label="SAVE CHANGES"
+            onPress={saveEdit}
+            disabled={!eName.trim()}
+            style={{ marginTop: 4, opacity: eName.trim() ? 1 : 0.35 }}
+          />
+        </ScrollView>
+      </Sheet>
     </View>
   );
 }
+
+const editStyles = {
+  input: {
+    color: C.text,
+    fontFamily: F.mono,
+    fontSize: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: C.border2,
+    borderRadius: 2,
+    backgroundColor: C.surface,
+  },
+  balanceRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: C.border2,
+    borderRadius: 2,
+    backgroundColor: C.surface,
+    paddingHorizontal: 12,
+  },
+  balanceInput: {
+    flex: 1,
+    color: C.text,
+    fontFamily: F.mono,
+    fontSize: 18,
+    paddingVertical: 12,
+  },
+};
 
 function StatCell({
   label,

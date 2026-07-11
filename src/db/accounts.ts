@@ -8,7 +8,8 @@ export type Account = {
   type: AccountType;
   account_no?: string | null;
   notes?: string | null;
-  opening_balance: number; // paise — balance at the time the account was added
+  opening_balance: number; // paise — balance as of `balance_as_of`
+  balance_as_of?: string | null; // ISO — when opening_balance was last set
   favorite: boolean;
 };
 
@@ -31,8 +32,8 @@ export async function upsertAccount(a: Omit<Account, 'id'> & { id?: string }): P
   const db = await getDb();
   const id = a.id ?? genId();
   await db.runAsync(
-    `INSERT OR REPLACE INTO accounts (id, name, type, account_no, notes, opening_balance, favorite)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO accounts (id, name, type, account_no, notes, opening_balance, balance_as_of, favorite)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       a.name,
@@ -40,10 +41,45 @@ export async function upsertAccount(a: Omit<Account, 'id'> & { id?: string }): P
       a.account_no ?? null,
       a.notes ?? null,
       a.opening_balance ?? 0,
+      a.balance_as_of ?? new Date().toISOString(),
       a.favorite ? 1 : 0,
     ]
   );
   return { ...a, id };
+}
+
+// Edit an existing account. Passing `opening_balance` re-anchors the balance:
+// `balance_as_of` is stamped to now so only later txns move the live figure.
+export async function updateAccount(
+  id: string,
+  fields: {
+    name: string;
+    type: AccountType;
+    account_no?: string | null;
+    notes?: string | null;
+    opening_balance?: number;
+  }
+): Promise<void> {
+  const db = await getDb();
+  if (fields.opening_balance !== undefined) {
+    await db.runAsync(
+      `UPDATE accounts SET name = ?, type = ?, account_no = ?, notes = ?, opening_balance = ?, balance_as_of = ? WHERE id = ?`,
+      [
+        fields.name,
+        fields.type,
+        fields.account_no ?? null,
+        fields.notes ?? null,
+        fields.opening_balance,
+        new Date().toISOString(),
+        id,
+      ]
+    );
+  } else {
+    await db.runAsync(
+      `UPDATE accounts SET name = ?, type = ?, account_no = ?, notes = ? WHERE id = ?`,
+      [fields.name, fields.type, fields.account_no ?? null, fields.notes ?? null, id]
+    );
+  }
 }
 
 export async function setFavorite(id: string, favorite: boolean): Promise<void> {

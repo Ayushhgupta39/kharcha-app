@@ -40,6 +40,13 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
   } catch {
     /* column already exists */
   }
+  try {
+    // The instant the opening_balance was last set. Only txns dated after this
+    // move the live balance; older ones are already baked into the number.
+    await db.execAsync(`ALTER TABLE accounts ADD COLUMN balance_as_of TEXT`);
+  } catch {
+    /* column already exists */
+  }
 
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
@@ -119,6 +126,7 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
       notes            TEXT,
       opening_balance  INTEGER NOT NULL DEFAULT 0,
       favorite         INTEGER NOT NULL DEFAULT 0,
+      balance_as_of    TEXT,
       created_at       TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);

@@ -44,11 +44,16 @@ export function inRange(t: Transaction, fromIso: string, toIso: string): boolean
   return t.date >= fromIso && t.date <= toIso;
 }
 
-// Live balance = opening balance the user entered, plus the net of every
-// transaction linked to the account. Income adds; expense, invest and lent
-// (all real outflows) subtract. Recomputed from txns so it never drifts.
+// Live balance = the balance the user entered (as of `balance_as_of`), plus the
+// net of transactions linked to the account and dated *after* that instant.
+// Txns older than the anchor are already reflected in the entered figure, so
+// assigning them must not move the balance. Income adds; expense, invest and
+// lent (all real outflows) subtract. Recomputed from txns so it never drifts.
 export function accountBalance(account: Account, allTxs: Transaction[]): number {
-  const linked = allTxs.filter((t) => t.account_id === account.id);
+  const anchor = account.balance_as_of;
+  const linked = allTxs.filter(
+    (t) => t.account_id === account.id && (!anchor || t.date > anchor)
+  );
   const { income, expense, invest, lent } = sumKinds(linked);
   return account.opening_balance + income - expense - invest - lent;
 }
