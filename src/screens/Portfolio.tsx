@@ -39,14 +39,29 @@ export function PortfolioScreen({ onOpenAccount, onOpenSettings }: Props) {
   const monthStart = startOfMonth(now).toISOString();
   const monthEnd = endOfMonth(now).toISOString();
 
-  const lifetime = useMemo(() => sumKinds(txs), [txs]);
-  const monthAll = useMemo(
-    () => sumKinds(txs.filter((t) => inRange(t, monthStart, monthEnd))),
-    [txs, monthStart, monthEnd]
+  // Period toggle for the per-account analytics ('month' | 'all').
+  const [period, setPeriod] = useState<'month' | 'all'>('month');
+
+  // Transactions in the active period, reused by every breakdown below.
+  const periodTxs = useMemo(
+    () => (period === 'month' ? txs.filter((t) => inRange(t, monthStart, monthEnd)) : txs),
+    [period, txs, monthStart, monthEnd]
   );
 
-  // Per-account this-month totals, keyed by account_id (used by the list rows).
+  // Combined totals across all accounts for the active period (grand total).
+  const combined = useMemo(() => sumKinds(periodTxs), [periodTxs]);
+
+  // Per-account totals for the active period, keyed by account_id.
   const perAccount = useMemo(() => {
+    const map: Record<string, KindTotals> = {};
+    for (const a of accounts) {
+      map[a.id] = sumKinds(periodTxs.filter((t) => t.account_id === a.id));
+    }
+    return map;
+  }, [accounts, periodTxs]);
+
+  // This-month totals per account for the compact SPENT tag on each list row.
+  const monthPerAccount = useMemo(() => {
     const map: Record<string, KindTotals> = {};
     for (const a of accounts) {
       map[a.id] = sumKinds(
@@ -162,7 +177,7 @@ export function PortfolioScreen({ onOpenAccount, onOpenSettings }: Props) {
             <AccountRow
               key={a.id}
               account={a}
-              totals={perAccount[a.id]}
+              totals={monthPerAccount[a.id]}
               balance={balances[a.id]}
               isDefault={a.id === defaultAccountId}
               onPress={() => onOpenAccount(a)}
@@ -172,26 +187,73 @@ export function PortfolioScreen({ onOpenAccount, onOpenSettings }: Props) {
         </View>
       )}
 
-      {/* All-accounts summary */}
-      <View style={{ paddingHorizontal: 20, paddingTop: 28 }}>
-        <T mono style={{ fontSize: 11, color: C.text3, letterSpacing: 1, marginBottom: 10 }}>
-          {format(now, 'MMMM').toUpperCase()} · ALL ACCOUNTS
-        </T>
-        <SummaryGrid totals={monthAll} accounts={accounts} />
+      {/* Per-account analytics */}
+      {accounts.length > 0 ? (
+        <View style={{ paddingHorizontal: 20, paddingTop: 28 }}>
+          <View style={styles.breakHeader}>
+            <Tag>BREAKDOWN</Tag>
+            <View style={styles.periodToggle}>
+              {(
+                [
+                  ['month', format(now, 'MMM').toUpperCase()],
+                  ['all', 'ALL TIME'],
+                ] as const
+              ).map(([key, label]) => {
+                const active = period === key;
+                return (
+                  <Pressable
+                    key={key}
+                    onPress={() => setPeriod(key)}
+                    style={{
+                      ...styles.periodChip,
+                      backgroundColor: active ? C.accentGlowFaint : 'transparent',
+                      borderColor: active ? C.accent : C.border2,
+                    }}>
+                    <T
+                      mono
+                      style={{
+                        fontSize: 10,
+                        letterSpacing: 1,
+                        color: active ? C.accent : C.text3,
+                      }}>
+                      {label}
+                    </T>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
 
-        <T
-          mono
-          style={{
-            fontSize: 11,
-            color: C.text3,
-            letterSpacing: 1,
-            marginTop: 22,
-            marginBottom: 10,
-          }}>
-          ALL TIME
-        </T>
-        <SummaryGrid totals={lifetime} accounts={accounts} />
-      </View>
+          <View style={{ gap: 12 }}>
+            {accounts.map((a) => (
+              <AccountStatCard
+                key={a.id}
+                account={a}
+                totals={perAccount[a.id]}
+                balance={balances[a.id]}
+                onPress={() => onOpenAccount(a)}
+              />
+            ))}
+          </View>
+
+          {accounts.length > 1 ? (
+            <>
+              <T
+                mono
+                style={{
+                  fontSize: 11,
+                  color: C.text3,
+                  letterSpacing: 1,
+                  marginTop: 24,
+                  marginBottom: 10,
+                }}>
+                ALL ACCOUNTS
+              </T>
+              <SummaryGrid totals={combined} />
+            </>
+          ) : null}
+        </View>
+      ) : null}
 
       <Sheet
         visible={addOpen}
@@ -301,24 +363,10 @@ export function PortfolioScreen({ onOpenAccount, onOpenSettings }: Props) {
   );
 }
 
-function SummaryGrid({ totals, accounts }: { totals: KindTotals; accounts?: Account[] }) {
+function SummaryGrid({ totals }: { totals: KindTotals }) {
   const savedPositive = totals.saved >= 0;
   return (
     <View style={styles.summaryWrap}>
-      {accounts && accounts.length ? (
-        <>
-          {accounts.map((a) => (
-            <View key={a.id} style={styles.acctLine}>
-              <Icon name={a.type === 'card' ? 'card' : 'bank'} size={13} color={C.text3} />
-              <T style={{ fontSize: 12, flex: 1 }} numberOfLines={1}>
-                {a.name}
-              </T>
-            </View>
-          ))}
-          <View style={styles.hDivider} />
-        </>
-      ) : null}
-
       <View style={styles.summaryRow}>
         <Cell label="INCOME" value={'+' + formatAmountCompact(totals.income)} color="#34C759" />
         <View style={styles.vDivider} />
@@ -340,6 +388,69 @@ function SummaryGrid({ totals, accounts }: { totals: KindTotals; accounts?: Acco
         <View style={{ flex: 1 }} />
       </View>
     </View>
+  );
+}
+
+// One account's own income/spent/saved (+ invest/lent when present) for the
+// active period, headed by the account name and its live balance. Tappable.
+function AccountStatCard({
+  account,
+  totals,
+  balance,
+  onPress,
+}: {
+  account: Account;
+  totals?: KindTotals;
+  balance: number;
+  onPress: () => void;
+}) {
+  const [pressed, setPressed] = useState(false);
+  const t = totals ?? { income: 0, expense: 0, invest: 0, lent: 0, saved: 0 };
+  const savedPositive = t.saved >= 0;
+  const negBal = balance < 0;
+  return (
+    <Pressable
+      onPress={onPress}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      style={{ ...styles.statCard, backgroundColor: pressed ? C.surface2 : C.surface }}>
+      <View style={styles.statHead}>
+        <Icon name={account.type === 'card' ? 'card' : 'bank'} size={15} color={C.text2} />
+        <T weight="500" style={{ fontSize: 13, flex: 1 }} numberOfLines={1}>
+          {account.name}
+        </T>
+        <View style={{ alignItems: 'flex-end' }}>
+          <T mono weight="600" style={{ fontSize: 13, color: negBal ? C.danger : C.text }}>
+            {negBal ? '−' : ''}
+            {formatAmountCompact(Math.abs(balance))}
+          </T>
+          <T mono color={C.text4} style={{ fontSize: 8, letterSpacing: 1, marginTop: 1 }}>
+            BALANCE
+          </T>
+        </View>
+      </View>
+      <View style={styles.statDivider} />
+      <View style={styles.summaryRow}>
+        <Cell label="INCOME" value={'+' + formatAmountCompact(t.income)} color="#34C759" />
+        <View style={styles.vDivider} />
+        <Cell label="SPENT" value={formatAmountCompact(t.expense)} color={C.text} />
+        <View style={styles.vDivider} />
+        <Cell
+          label={savedPositive ? 'SAVED' : 'OVER'}
+          value={formatAmountCompact(Math.abs(t.saved))}
+          color={savedPositive ? '#34C759' : C.danger}
+          alignEnd
+        />
+      </View>
+      <View style={styles.statDivider} />
+      <View style={styles.summaryRow}>
+        <Cell label="INVEST" value={formatAmountCompact(t.invest)} color={C.accent} />
+        <View style={styles.vDivider} />
+        <Cell label="LENT" value={formatAmountCompact(t.lent)} color={C.text2} />
+        <View style={styles.vDivider} />
+        <View style={{ flex: 1 }} />
+      </View>
+    </Pressable>
   );
 }
 
@@ -463,11 +574,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  acctLine: {
+  breakHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  periodToggle: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  periodChip: {
+    borderWidth: 1,
+    borderRadius: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  statCard: {
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 2,
+    padding: 14,
+  },
+  statHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 7,
+    gap: 10,
+  },
+  statDivider: {
+    height: 1,
+    backgroundColor: C.border,
+    marginVertical: 12,
   },
   cell: { flex: 1 },
   vDivider: {
